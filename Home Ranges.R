@@ -1,8 +1,12 @@
 #-----------------------Setup---------------------------------------------------
 
-###work directory
-setwd("C:/Users/bgroo/Desktop/Dissertation/Data/All")
-getwd()
+start.time <- Sys.time()
+
+urlfile1 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all22.txt" 
+urlfile2 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all23.txt"
+all_22 <- read.csv(url(urlfile1), sep = "\t")
+all_23 <- read.csv(url(urlfile2), sep = "\t")
+all <- rbind(all_22, all_23)
 
 ###library
 library(sf)
@@ -14,31 +18,32 @@ library(tidygraph)
 library(ggraph)
 library(magrittr)
 
-###import data
-all_22 <- read.csv("all22.csv")
+all$Longitude <- as.numeric(all$Longitude)
+all$Latitude <- as.numeric(all$Latitude)
 
 ###remove NAs
-all_22 <- all_22 %>% 
-  filter(!is.na(UTC_datetime))
+all <- all %>% 
+  filter(!is.na(UTC_datetime)) %>%
+  filter(!is.na(Latitude))
 
 ###Convert UTC_datetime to POSIXct. Make sure that this matches the format in 
 #the columns otherwise will return NAs
-all_22$ts <- as.POSIXct(all_22$UTC_datetime, 
+all$ts <- as.POSIXct(all$UTC_datetime, 
                         format = "%Y-%m-%d %H:%M:%S") 
 
 ###create column with day
 #format UTC-date as a date
-all_22$UTC_date <- as.Date(all_22$UTC_date)
+all$UTC_date <- as.Date(all$UTC_date)
 #create a column for days
-all_22$day <- weekdays(all_22$UTC_date)
+all$day <- weekdays(all$UTC_date)
 
 ###select columns that are needed
-all_22 <- all_22 %>% 
-  dplyr::select(Longitude, Latitude, ts, device_id, day, species)
+all <- all %>% 
+  dplyr::select(Longitude, Latitude, ts, day, UTC_date, device_id, species)
 
 ###filtering to remove migration
 #making a simple feature
-all_22_sf <- st_as_sf(all_22, coords=c("Longitude","Latitude"), crs = 4326)
+all_sf <- st_as_sf(all, coords=c("Longitude","Latitude"), crs = 4326)
 #setting coordinates for dublin polygon
 y_coord <- c(53.55, 53.55, 53.29, 53.29, 53.55)
 x_coord <- c(-6.30, -6.00, -6.00, -6.30, -6.30)
@@ -49,29 +54,29 @@ dubpol <- st_polygon(x = list(xy))
 #convert to simple feature
 dubpoly <- st_sfc(dubpol, crs = 4326)
 #subset data using the dublin polygon
-all_22_sf <- all_22_sf[dubpoly,]
+all_sf <- all_sf[dubpoly,]
 #convert simple feature back into a normal dataset
-all_22_df <- sf_to_df(all_22_sf, fill = TRUE)
+all_df <- sf_to_df(all_sf, fill = TRUE)
 
 ###remove NAs
-all_22_df <- all_22_df %>% 
+all_df <- all_df %>% 
   filter(!is.na(ts))
 
 ###check if all observations are complete
-all(complete.cases(all_22_df))
+all(complete.cases(all_df))
 
 ###removing duplicates
 #check for duplicated time stamps
-any(duplicated(all_22_df$ts))
+any(duplicated(all_df$ts))
 #remove duplicates
-all_22_df <- all_22_df[!duplicated(all_22_df$ts), ]
+all_df <- all_df[!duplicated(all_df$ts), ]
 
 ###defining weekend and day
 workday <- c("Monday","Tuesday","Wednesday","Thursday","Friday")
 weekend <- c("Saturday","Sunday")
 
 ####make track
-all_22_trk <- make_track(all_22_df, x, y, ts, id = device_id, day = day, species = species,
+all_trk <- make_track(all_df, x, y, ts, day = day, date = UTC_date, id = device_id, species = species,
                          crs = 4326)
 
 
@@ -81,7 +86,7 @@ all_22_trk <- make_track(all_22_df, x, y, ts, id = device_id, day = day, species
 
 ###Make Track for Redshank = 44204
 #filter for rk
-rk_trk <- all_22_trk %>% 
+rk_trk <- all_trk %>% 
   filter(species == "RK")%>%
   filter(id == 44204)
 
@@ -89,16 +94,16 @@ rk_trk <- all_22_trk %>%
 trast <- make_trast(rk_trk, res = 50)
 
 ###days of the week
-dayofweek <- c(unique(rk_trk$day))
+date <- c(unique(rk_trk$date))
 
 ###loop to create home range sizes for each day of the week
 #empty dataframe
 results_df <- data.frame(day = character(), area = numeric())
 #loop repeated for each day of the week
-for (i in dayofweek) {
+for (i in date) {
   #filter track by day of the week
   df1 <- rk_trk %>%
-    filter(day == i)
+    filter(date == i)
   #calculate home range area
   df2 <- df1 %>%
     hr_akde(model = fit_ctmm(rk_trk, "auto"), 
@@ -107,11 +112,16 @@ for (i in dayofweek) {
     hr_area()
   #extract value from results
   value <- df2[[2,3]]
-  #create dataframe with a day and area column
-  df3 <- data.frame(day = i, area = value)
+  #create dataframe with a day and area column 
+  df3 <- data.frame(date = i, area = value)
   #bind to empty dataframe
   results_df <- rbind(results_df, df3)
 }
 
 # Print the resulting dataframe
 print(results_df)
+
+end.time <- Sys.time()
+print(round(end.time-start.time,2))
+
+
