@@ -121,6 +121,9 @@ for (i in date) {
 # Print the resulting dataframe
 print(results_df)
 
+results_df$date <- as.Date(results_df$date)
+results_df$day <- weekdays(results_df$date)
+
 end.time <- Sys.time()
 print(round(end.time-start.time,2))
 
