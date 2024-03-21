@@ -18,6 +18,7 @@ library(ggplot2)
 library(tidygraph)
 library(ggraph)
 library(magrittr)
+library(eks)
 
 ###changing format of coordinates
 all$Longitude <- as.numeric(all$Longitude)
@@ -86,14 +87,17 @@ rk_trk <- all_trk %>%
   filter(species == "RK")
 
 ###dates
-date <- c(unique(rk_trk$date))
+date <- c(unique(all_trk$date))
 
 ###ids
-id <- c(unique(rk_trk$id))
+id <- c(unique(all_trk$id))
+
+###species
+species <- c(unique(all_trk$species))
 
 
 
-#-----------------------Home Ranges (rk = 44204 as example)---------------------
+#-----------------------Home Ranges (rk = 44204 as example) using AMT-----------
 
 
 ###Make Track for Redshank = 44204
@@ -137,6 +141,18 @@ end.time <- Sys.time()
 print(round(end.time-start.time,2))
 
 
+#-----------------------Home Ranges (rk = 44204 as example) using EKS-----------
+
+###creating home range
+kde_44204 <- all_sf %>%
+  filter(device_id == "44204") %>%
+  eks::st_kde() %>%
+  eks::st_get_contour(., cont=c(95)) %>%
+  sf::st_area()
+
+ggplot()+
+  geom_sf(data = kde_44204)
+
 
 #-----------------------Step Lengths (rk = 44204 as example)--------------------
 
@@ -145,16 +161,19 @@ print(round(end.time-start.time,2))
 #empty dataframe
 sl_results <- data.frame(day = character(), distance = numeric())
 #loop repeated for each date
+for (k in species) {
+  step1 <- all_trk %>%
+    filter(species == k)
 for (j in id) {
   #filter track by id
-  step1 <- rk_trk %>%
+  step2 <- all_trk %>%
     filter(id == j)
 for (i in date) {
   #filter track by date
-  step2 <- rk_trk %>%
+  step3 <- all_trk %>%
     filter(date == i)
   #calculate step lengths
-  step3 <- step_lengths(step2) %>%
+  step4 <- step_lengths(step3) %>%
     #define as a data frame
     as.data.frame() %>%
     #change column name
@@ -162,12 +181,12 @@ for (i in date) {
     #remove NAs
     filter(!is.na(distance))
   #sum up the step lengths
-  value_sl <- sum(step3$distance)
+  value_sl <- sum(step4$distance)
   #create dataframe with a day and distance column 
-  step4 <- data.frame(date = i, id = j,  distance = value_sl)
+  step5 <- data.frame(date = i, id = j, species = k, distance = value_sl)
   #bind to empty dataframe
-  sl_results <- rbind(sl_results, step4)
-}}
+  sl_results <- rbind(sl_results, step5)
+}}}
 
 #change format of date
 sl_results$date <- as.Date(sl_results$date)
