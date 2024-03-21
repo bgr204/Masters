@@ -1,5 +1,6 @@
 #-----------------------Setup---------------------------------------------------
 
+###timer
 start.time <- Sys.time()
 
 urlfile1 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all22.txt" 
@@ -18,6 +19,7 @@ library(tidygraph)
 library(ggraph)
 library(magrittr)
 
+###changing format of coordinates
 all$Longitude <- as.numeric(all$Longitude)
 all$Latitude <- as.numeric(all$Latitude)
 
@@ -76,8 +78,18 @@ workday <- c("Monday","Tuesday","Wednesday","Thursday","Friday")
 weekend <- c("Saturday","Sunday")
 
 ####make track
-all_trk <- make_track(all_df, x, y, ts, day = day, date = UTC_date, id = device_id, species = species,
-                         crs = 4326)
+all_trk <- make_track(all_df, x, y, ts, day = day, date = UTC_date, 
+                      id = device_id, species = species,
+                      crs = 4326)
+#filter for redshank
+rk_trk <- all_trk %>% 
+  filter(species == "RK")
+
+###dates
+date <- c(unique(rk_trk$date))
+
+###ids
+id <- c(unique(rk_trk$id))
 
 
 
@@ -86,27 +98,23 @@ all_trk <- make_track(all_df, x, y, ts, day = day, date = UTC_date, id = device_
 
 ###Make Track for Redshank = 44204
 #filter for rk
-rk_trk <- all_trk %>% 
-  filter(species == "RK")%>%
+rk_trk_44204 <- rk_trk %>% 
   filter(id == 44204)
 
 ###make trast
-trast <- make_trast(rk_trk, res = 50)
+trast <- make_trast(rk_trk_44204, res = 50)
 
-###days of the week
-date <- c(unique(rk_trk$date))
-
-###loop to create home range sizes for each day of the week
+###loop to create home range sizes for each date
 #empty dataframe
-results_df <- data.frame(day = character(), area = numeric())
-#loop repeated for each day of the week
+hr_results <- data.frame(day = character(), area = numeric())
+#loop repeated for each date
 for (i in date) {
-  #filter track by day of the week
-  df1 <- rk_trk %>%
+  #filter track by date
+  df1 <- rk_trk_44204 %>%
     filter(date == i)
   #calculate home range area
   df2 <- df1 %>%
-    hr_akde(model = fit_ctmm(rk_trk, "auto"), 
+    hr_akde(model = fit_ctmm(rk_trk_44204, "auto"), 
             levels = c(0.5, 0.95),
             trast = trast) %>%
     hr_area()
@@ -115,16 +123,63 @@ for (i in date) {
   #create dataframe with a day and area column 
   df3 <- data.frame(date = i, area = value)
   #bind to empty dataframe
-  results_df <- rbind(results_df, df3)
+  hr_results <- rbind(hr_results, df3)
 }
+#change format of date
+hr_results$date <- as.Date(hr_results$date)
+#add column with weekday
+hr_results$day <- weekdays(hr_results$date)
+#Print the resulting dataframe
+print(hr_results)
 
-# Print the resulting dataframe
-print(results_df)
-
-results_df$date <- as.Date(results_df$date)
-results_df$day <- weekdays(results_df$date)
-
+###timer
 end.time <- Sys.time()
 print(round(end.time-start.time,2))
 
 
+
+#-----------------------Step Lengths (rk = 44204 as example)--------------------
+
+
+###loop to create step lengths for each date
+#empty dataframe
+sl_results <- data.frame(day = character(), distance = numeric())
+#loop repeated for each date
+for (j in id) {
+  #filter track by id
+  step1 <- rk_trk %>%
+    filter(id == j)
+for (i in date) {
+  #filter track by date
+  step2 <- rk_trk %>%
+    filter(date == i)
+  #calculate step lengths
+  step3 <- step_lengths(step2) %>%
+    #define as a data frame
+    as.data.frame() %>%
+    #change column name
+    setNames(c("distance")) %>% 
+    #remove NAs
+    filter(!is.na(distance))
+  #sum up the step lengths
+  value_sl <- sum(step3$distance)
+  #create dataframe with a day and distance column 
+  step4 <- data.frame(date = i, id = j,  distance = value_sl)
+  #bind to empty dataframe
+  sl_results <- rbind(sl_results, step4)
+}}
+
+#change format of date
+sl_results$date <- as.Date(sl_results$date)
+#creating a column for weekend or not
+sl_results$is_weekend <- sl_results$day %in% c("Saturday", "Sunday")
+#add column with weekday
+sl_results$day <- weekdays(sl_results$date)
+#Print the resulting dataframe
+print(sl_results)
+
+#small go at a linear model for it
+m1 <- glm(data = sl_results, distance~is_weekend)
+m2 <- glm(data = sl_results, distance~1)
+anova(m1,m2, test = "F")
+summary(m1)
