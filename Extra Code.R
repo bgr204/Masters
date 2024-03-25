@@ -258,3 +258,48 @@ rk_area_work[[2,3]]-rk_area_weekend[[2,3]]
 hr_overlap(rk_akde_work, rk_akde_weekend, type = "hr") 
 hr_overlap(rk_akde_weekend, rk_akde_work, type = "hr") 
 
+
+#-----------------------Home Ranges (rk = 44204 as example) using AMT-----------
+
+
+###Make Track for Redshank = 44204
+#filter for rk
+rk_trk_44204 <- rk_trk %>% 
+  filter(id == 44204)
+
+###make trast
+trast <- make_trast(rk_trk_44204, res = 50)
+
+###loop to create home range sizes for each date
+#empty dataframe
+hr_results <- data.frame(day = character(), area = numeric())
+#loop repeated for each date
+for (i in date) {
+  #filter track by date
+  df1 <- rk_trk_44204 %>%
+    filter(date == i)
+  #calculate home range area
+  df2 <- df1 %>%
+    hr_akde(model = fit_ctmm(rk_trk_44204, "auto"), 
+            levels = c(0.5, 0.95),
+            trast = trast) %>%
+    hr_area()
+  #extract value from results
+  value <- df2[[2,3]]
+  #create dataframe with a day and area column 
+  df3 <- data.frame(date = i, area = value)
+  #bind to empty dataframe
+  hr_results <- rbind(hr_results, df3)
+}
+#change format of date
+hr_results$date <- as.Date(hr_results$date)
+#add column with weekday
+hr_results$day <- weekdays(hr_results$date)
+#Print the resulting dataframe
+print(hr_results)
+
+###timer
+end.time <- Sys.time()
+print(round(end.time-start.time,2))
+
+

@@ -1,13 +1,16 @@
 #-----------------------Setup---------------------------------------------------
 
-###timer
-start.time <- Sys.time()
 
 urlfile1 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all22.txt" 
 urlfile2 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all23.txt"
+urlfile3 <- "https://raw.githubusercontent.com/bgr204/Masters/master/tag%20metadata%2021-22.txt"
+urlfile4 <- "https://raw.githubusercontent.com/bgr204/Masters/master/tag%20metadata%2022-23.txt"
 all_22 <- read.csv(url(urlfile1), sep = "\t")
 all_23 <- read.csv(url(urlfile2), sep = "\t")
+tag_22 <- read.csv(url(urlfile3), sep = "\t")
+tag_23 <- read.csv(url(urlfile4), sep = "\t")
 all <- rbind(all_22, all_23)
+tag <- rbind(tag_22, tag_23)
 
 ###library
 library(sf)
@@ -95,40 +98,38 @@ id <- c(unique(all_trk$id))
 ###species
 species <- c(unique(all_trk$species))
 
+#-----------------------Home Ranges (rk = 44204 as example) using EKS-----------
 
+kde_rk <- all_sf %>%
+  filter(species == "RK")
 
-#-----------------------Home Ranges (rk = 44204 as example) using AMT-----------
+id <- c(unique(kde_rk$device_id))
 
-
-###Make Track for Redshank = 44204
-#filter for rk
-rk_trk_44204 <- rk_trk %>% 
-  filter(id == 44204)
-
-###make trast
-trast <- make_trast(rk_trk_44204, res = 50)
-
-###loop to create home range sizes for each date
 #empty dataframe
 hr_results <- data.frame(day = character(), area = numeric())
 #loop repeated for each date
-for (i in date) {
+for (j in id) {
+  #filter track by id
+  hr1 <- kde_rk %>%
+    filter(device_id == j)
+  date1 <- c(unique(hr1$UTC_date))
+for (i in date1) {
   #filter track by date
-  df1 <- rk_trk_44204 %>%
-    filter(date == i)
+  hr2 <- hr1 %>%
+    filter(UTC_date == i)
   #calculate home range area
-  df2 <- df1 %>%
-    hr_akde(model = fit_ctmm(rk_trk_44204, "auto"), 
-            levels = c(0.5, 0.95),
-            trast = trast) %>%
-    hr_area()
+  hr3 <- hr2 %>%
+    eks::st_kde() %>%
+    eks::st_get_contour(., cont=c(95)) %>%
+    sf::st_area()
   #extract value from results
-  value <- df2[[2,3]]
+  value_hr <- as.numeric(hr3)
   #create dataframe with a day and area column 
-  df3 <- data.frame(date = i, area = value)
+  hr4 <- data.frame(date = i, area = value_hr)
   #bind to empty dataframe
-  hr_results <- rbind(hr_results, df3)
-}
+  hr_results <- rbind(hr_results, hr4)
+}}
+
 #change format of date
 hr_results$date <- as.Date(hr_results$date)
 #add column with weekday
@@ -136,26 +137,15 @@ hr_results$day <- weekdays(hr_results$date)
 #Print the resulting dataframe
 print(hr_results)
 
-###timer
-end.time <- Sys.time()
-print(round(end.time-start.time,2))
 
 
-#-----------------------Home Ranges (rk = 44204 as example) using EKS-----------
-
-###creating home range
-kde_44204 <- all_sf %>%
-  filter(device_id == "44204") %>%
-  eks::st_kde() %>%
-  eks::st_get_contour(., cont=c(95)) %>%
-  sf::st_area()
-
-ggplot()+
-  geom_sf(data = kde_44204)
 
 
 #-----------------------Step Lengths (rk = 44204 as example)--------------------
 
+
+###timer
+start.time <- Sys.time()
 
 ###loop to create step lengths for each date
 #empty dataframe
@@ -190,15 +180,15 @@ for (i in date) {
 
 #change format of date
 sl_results$date <- as.Date(sl_results$date)
-#creating a column for weekend or not
-sl_results$is_weekend <- sl_results$day %in% c("Saturday", "Sunday")
 #add column with weekday
 sl_results$day <- weekdays(sl_results$date)
+#creating a column for weekend or not
+sl_results$is_weekend <- sl_results$day %in% c("Saturday", "Sunday")
 #Print the resulting dataframe
 print(sl_results)
 
-#small go at a linear model for it
-m1 <- glm(data = sl_results, distance~is_weekend)
-m2 <- glm(data = sl_results, distance~1)
-anova(m1,m2, test = "F")
-summary(m1)
+
+###timer
+end.time <- Sys.time()
+print(round(end.time-start.time,2))
+
