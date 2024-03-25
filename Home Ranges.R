@@ -37,6 +37,16 @@ all <- all %>%
 all$ts <- as.POSIXct(all$UTC_datetime, 
                         format = "%Y-%m-%d %H:%M:%S") 
 
+###adding catch date to the dataframe
+all$catch_date <- with(tag, deploy_date[match(all$device_id, ID)])
+#formatting date
+all$catch_date <- as.Date(all$catch_date, format = "%d/%m/%Y")
+#creating column for day after
+all$day_after <- all$catch_date+1
+#removing data from catch dates
+all <- subset(all, UTC_date != catch_date)
+all <- subset(all, UTC_date != day_after)
+
 ###create column with day
 #format UTC-date as a date
 all$UTC_date <- as.Date(all$UTC_date)
@@ -100,35 +110,39 @@ species <- c(unique(all_trk$species))
 
 #-----------------------Home Ranges (rk = 44204 as example) using EKS-----------
 
-kde_rk <- all_sf %>%
-  filter(species == "RK")
-
-id <- c(unique(kde_rk$device_id))
 
 #empty dataframe
 hr_results <- data.frame(day = character(), area = numeric())
 #loop repeated for each date
+for (k in species) {
+  hr1 <- all_sf %>%
+    filter(species == k)
+  id1 <- c(unique(hr1$device_id))
 for (j in id) {
   #filter track by id
-  hr1 <- kde_rk %>%
+  hr2 <- hr1 %>%
     filter(device_id == j)
-  date1 <- c(unique(hr1$UTC_date))
+  date1 <- c(unique(hr2$UTC_date))
 for (i in date1) {
   #filter track by date
-  hr2 <- hr1 %>%
-    filter(UTC_date == i)
-  #calculate home range area
   hr3 <- hr2 %>%
+    filter(UTC_date == i)
+  # Skip calculation if number of rows in hr2 is less than 6
+  if (nrow(hr3) < 6) {
+    next  # Skip to the next iteration
+  }
+  #calculate home range area
+  hr4 <- hr3 %>%
     eks::st_kde() %>%
     eks::st_get_contour(., cont=c(95)) %>%
     sf::st_area()
   #extract value from results
-  value_hr <- as.numeric(hr3)
+  value_hr <- as.numeric(hr4)
   #create dataframe with a day and area column 
-  hr4 <- data.frame(date = i, area = value_hr)
+  hr5 <- data.frame(date = i, area = value_hr, id = j, species = k)
   #bind to empty dataframe
-  hr_results <- rbind(hr_results, hr4)
-}}
+  hr_results <- rbind(hr_results, hr5)
+}}}
 
 #change format of date
 hr_results$date <- as.Date(hr_results$date)
