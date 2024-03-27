@@ -1,14 +1,19 @@
 #-----------------------Setup---------------------------------------------------
 
 
+
+###uploading files
+#reading in urls from github
 urlfile1 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all22.txt" 
 urlfile2 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all23.txt"
 urlfile3 <- "https://raw.githubusercontent.com/bgr204/Masters/master/tag%20metadata%2021-22.txt"
 urlfile4 <- "https://raw.githubusercontent.com/bgr204/Masters/master/tag%20metadata%2022-23.txt"
+#read url into csv
 all_22 <- read.csv(url(urlfile1), sep = "\t")
 all_23 <- read.csv(url(urlfile2), sep = "\t")
 tag_22 <- read.csv(url(urlfile3), sep = "\t")
 tag_23 <- read.csv(url(urlfile4), sep = "\t")
+#bind years
 all <- rbind(all_22, all_23)
 tag <- rbind(tag_22, tag_23)
 
@@ -32,8 +37,7 @@ all <- all %>%
   filter(!is.na(UTC_datetime)) %>%
   filter(!is.na(Latitude))
 
-###Convert UTC_datetime to POSIXct. Make sure that this matches the format in 
-#the columns otherwise will return NAs
+###Convert UTC_datetime to POSIXct
 all$ts <- as.POSIXct(all$UTC_datetime, 
                         format = "%Y-%m-%d %H:%M:%S") 
 
@@ -95,15 +99,6 @@ weekend <- c("Saturday","Sunday")
 all_trk <- make_track(all_df, x, y, ts, day = day, date = UTC_date, 
                       id = device_id, species = species,
                       crs = 4326)
-#filter for redshank
-rk_trk <- all_trk %>% 
-  filter(species == "RK")
-
-###dates
-date <- c(unique(all_trk$date))
-
-###ids
-id <- c(unique(all_trk$id))
 
 ###species
 species <- c(unique(all_trk$species))
@@ -114,19 +109,19 @@ species <- c(unique(all_trk$species))
 #empty dataframe
 hr_results <- data.frame(day = character(), area = numeric())
 #loop repeated for each date
-for (k in species) {
+for (i in species) {
   hr1 <- all_sf %>%
-    filter(species == k)
-  id1 <- c(unique(hr1$device_id))
-for (j in id) {
+    filter(species == i)
+  id_hr <- c(unique(hr1$device_id))
+for (j in id_hr) {
   #filter track by id
   hr2 <- hr1 %>%
     filter(device_id == j)
-  date1 <- c(unique(hr2$UTC_date))
-for (i in date1) {
+  date_hr <- c(unique(hr2$UTC_date))
+for (k in date_hr) {
   #filter track by date
   hr3 <- hr2 %>%
-    filter(UTC_date == i)
+    filter(UTC_date == k)
   # Skip calculation if number of rows in hr2 is less than 6
   if (nrow(hr3) < 6) {
     next  # Skip to the next iteration
@@ -139,7 +134,7 @@ for (i in date1) {
   #extract value from results
   value_hr <- as.numeric(hr4)
   #create dataframe with a day and area column 
-  hr5 <- data.frame(date = i, area = value_hr, id = j, species = k)
+  hr5 <- data.frame(date = k, area = value_hr, id = j, species = i)
   #bind to empty dataframe
   hr_results <- rbind(hr_results, hr5)
 }}}
@@ -150,6 +145,8 @@ hr_results$date <- as.Date(hr_results$date)
 hr_results$day <- weekdays(hr_results$date)
 #Print the resulting dataframe
 print(hr_results)
+#export to txt file
+write.table(hr_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Home_Range.txt", row.names=FALSE, sep = "\t", quote=FALSE)
 
 
 
@@ -165,19 +162,25 @@ start.time <- Sys.time()
 #empty dataframe
 sl_results <- data.frame(day = character(), distance = numeric())
 #loop repeated for each date
-for (k in species) {
-  step1 <- all_trk %>%
-    filter(species == k)
-for (j in id) {
+for (i in species) {
+  sl1 <- all_trk %>%
+    filter(species == i)
+  id_sl <- c(unique(sl1$id))
+for (j in id_sl) {
   #filter track by id
-  step2 <- all_trk %>%
+  sl2 <- all_trk %>%
     filter(id == j)
-for (i in date) {
+  date_sl <- c(unique(sl2$date))
+for (k in date_sl) {
   #filter track by date
-  step3 <- all_trk %>%
-    filter(date == i)
+  sl3 <- all_trk %>%
+    filter(date == k)
+  # Skip calculation if number of rows in hr2 is less than 6
+  if (nrow(sl3) < 6) {
+    next  # Skip to the next iteration
+  }
   #calculate step lengths
-  step4 <- step_lengths(step3) %>%
+  sl4 <- step_lengths(sl3) %>%
     #define as a data frame
     as.data.frame() %>%
     #change column name
@@ -185,11 +188,11 @@ for (i in date) {
     #remove NAs
     filter(!is.na(distance))
   #sum up the step lengths
-  value_sl <- sum(step4$distance)
+  value_sl <- sum(sl4$distance)
   #create dataframe with a day and distance column 
-  step5 <- data.frame(date = i, id = j, species = k, distance = value_sl)
+  sl5 <- data.frame(date = k, distance = value_sl, id = j, species = i)
   #bind to empty dataframe
-  sl_results <- rbind(sl_results, step5)
+  sl_results <- rbind(sl_results, sl5)
 }}}
 
 #change format of date
@@ -200,6 +203,9 @@ sl_results$day <- weekdays(sl_results$date)
 sl_results$is_weekend <- sl_results$day %in% c("Saturday", "Sunday")
 #Print the resulting dataframe
 print(sl_results)
+
+#export to txt file
+write.table(sl_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Step_Length.txt", row.names=FALSE, sep = "\t", quote=FALSE)
 
 
 ###timer
