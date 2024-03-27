@@ -302,4 +302,15 @@ print(hr_results)
 end.time <- Sys.time()
 print(round(end.time-start.time,2))
 
+#------------------------checking for duplicates and complete cases-------------
 
+###check if all observations are complete
+all(complete.cases(all_df))
+
+
+###removing duplicates
+#check for duplicated time stamps
+any(duplicated(all_df))
+#remove duplicates
+all_df <- all_df[!duplicated(all_df), ]
+all_df <- all_df %>% distinct()
