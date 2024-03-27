@@ -41,6 +41,10 @@ all <- all %>%
 all$ts <- as.POSIXct(all$UTC_datetime, 
                         format = "%Y-%m-%d %H:%M:%S") 
 
+###remove NAs - why are they introduced by the previous code?
+all <- all %>% 
+  filter(!is.na(ts))
+
 ###adding catch date to the dataframe
 all$catch_date <- with(tag, deploy_date[match(all$device_id, ID)])
 #formatting date
@@ -78,30 +82,17 @@ all_sf <- all_sf[dubpoly,]
 #convert simple feature back into a normal dataset
 all_df <- sf_to_df(all_sf, fill = TRUE)
 
-###remove NAs
-all_df <- all_df %>% 
-  filter(!is.na(ts))
-
-###check if all observations are complete
-all(complete.cases(all_df))
-
-###removing duplicates
-#check for duplicated time stamps
-any(duplicated(all_df$ts))
-#remove duplicates
-all_df <- all_df[!duplicated(all_df$ts), ]
-
-###defining weekend and day
+###creating objects
 workday <- c("Monday","Tuesday","Wednesday","Thursday","Friday")
 weekend <- c("Saturday","Sunday")
+species <- c(unique(all$species))
 
 ####make track
 all_trk <- make_track(all_df, x, y, ts, day = day, date = UTC_date, 
                       id = device_id, species = species,
                       crs = 4326)
 
-###species
-species <- c(unique(all_trk$species))
+
 
 #-----------------------Home Ranges (rk = 44204 as example) using EKS-----------
 
@@ -122,7 +113,7 @@ for (k in date_hr) {
   #filter track by date
   hr3 <- hr2 %>%
     filter(UTC_date == k)
-  # Skip calculation if number of rows in hr2 is less than 6
+  # Skip calculation if number of rows in hr3 is less than 6
   if (nrow(hr3) < 6) {
     next  # Skip to the next iteration
   }
@@ -143,6 +134,8 @@ for (k in date_hr) {
 hr_results$date <- as.Date(hr_results$date)
 #add column with weekday
 hr_results$day <- weekdays(hr_results$date)
+#creating a column for weekend or not
+hr_results$is_weekend <- hr_results$day %in% c("Saturday", "Sunday")
 #Print the resulting dataframe
 print(hr_results)
 #export to txt file
@@ -175,7 +168,7 @@ for (k in date_sl) {
   #filter track by date
   sl3 <- all_trk %>%
     filter(date == k)
-  # Skip calculation if number of rows in hr2 is less than 6
+  # Skip calculation if number of rows in sl3 is less than 6
   if (nrow(sl3) < 6) {
     next  # Skip to the next iteration
   }
