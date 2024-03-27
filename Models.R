@@ -18,6 +18,8 @@ home_range <- read.csv(url(url7), sep = "\t")
 library(chron)
 library(effects)
 library(MuMIn)
+library(regclass)
+library(lme4)
 
 
 #-------------------------Formatting--------------------------------------------
@@ -26,10 +28,48 @@ library(MuMIn)
 disturbance$human_rate <- as.numeric(disturbance$human_rate)
 disturbance$start_time <- chron(times=disturbance$start_time)
 disturbance$location_code <- as.factor(disturbance$location_code)
+disturbance$precipitation <- as.numeric(factor(disturbance$precipitation, 
+                                        levels = c("None","Spots","Drizzle",
+                                        "Light showers", "Showers")))-1
+disturbance$wind_speed <- as.numeric(factor(disturbance$wind_speed), levels = 
+                                     c("0-10","10-20","20-30","30-40","40-50"))
+
 
 
 #-------------------------Disturbance Models------------------------------------
 
-disturbance_m1 <- glm(data = disturbance, vigilance~start_time*tide_state*wind*
-                        precipitation*cloud*birds_start*human_rate*location_code)
-cor(disturbance)
+###checking for collinearity in weather data
+#creating a matrix with weather data in
+weather_matrix <- disturbance[,c("cloud","precipitation","wind_speed")]
+#correlation test for collinearity
+cor(weather_matrix)
+
+###disturbance model without random effects
+#with human_rate
+disturbance_m1 <- glm(data = disturbance, vigilance~wind_speed+
+                      precipitation+cloud+human_rate+tide_state+start_time, 
+                      family = "poisson")
+#without human_rate
+disturbance_m2 <- update(disturbance_m1,~.-human_rate)
+#anova test
+anova(disturbance_m1, disturbance_m2, test = "Chisq")
+
+###disturbance model with random effects
+#with human_rate
+disturbance_m3 <- glmer(data = disturbance, vigilance~wind_speed+
+                        precipitation+cloud+human_rate+tide_state+start_time+(1|location_code), 
+                      family = "poisson")
+#without human_rate
+disturbance_m4 <- update(disturbance_m3,~.-human_rate)
+#anova test
+anova(disturbance_m3, disturbance_m4, test = "Chisq")
+
+
+#-------------------------Step Length Model-------------------------------------
+
+step_length$date <- as.Date(step_length$date)
+step_m1 <- lmer(data = step_length, distance~is_weekend+species+date+(1|id))
+step_m2 <- update(step_m1,~.-is_weekend)
+anova(step_m1, step_m2, test = "F")
+summary(step_m1)
+
