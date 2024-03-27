@@ -47,7 +47,7 @@ cor(weather_matrix)
 ###disturbance model without random effects
 #with human_rate
 disturbance_m1 <- glm(data = disturbance, vigilance~wind_speed+
-                      precipitation+cloud+human_rate+tide_state+start_time, 
+                      precipitation+cloud+human_rate+tide_state+start_time+location_code, 
                       family = "poisson")
 #without human_rate
 disturbance_m2 <- update(disturbance_m1,~.-human_rate)
@@ -68,8 +68,20 @@ anova(disturbance_m3, disturbance_m4, test = "Chisq")
 #-------------------------Step Length Model-------------------------------------
 
 step_length$date <- as.Date(step_length$date)
+
 step_m1 <- lmer(data = step_length, distance~is_weekend+species+date+(1|id))
 step_m2 <- update(step_m1,~.-is_weekend)
 anova(step_m1, step_m2, test = "F")
+
 summary(step_m1)
 
+
+#-------------------------Home Range Model--------------------------------------
+
+home_range$date <- as.Date(home_range$date)
+
+home_m1 <- lmer(data = home_range, area~is_weekend+species+date+(1|id))
+home_m2 <- update(home_m1,~.-is_weekend)
+anova(home_m1, home_m2, test = "F")
+
+summary(home_m1)
