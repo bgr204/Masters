@@ -116,7 +116,7 @@ trackSubSamp <- function(TD, dt=1, unit='hours'){
 
 # Run the function on the original data frame
 length(all_22$Longitude) # Example to check number of fixes pre-subsample
-list_all_22 <- trackSubSamp(all_22)
+list_all_22 <- trackSubSamp(all)
 
 # Convert list to data frame
 df_all_22_ss <- do.call("rbind", list_all_22)
