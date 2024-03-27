@@ -1,6 +1,7 @@
 #-----------------------Setup---------------------------------------------------
 
-
+###timer
+start.time <- Sys.time()
 
 ###uploading files
 #reading in urls from github
@@ -38,36 +39,69 @@ all <- all %>%
   filter(!is.na(Latitude))
 
 ###Convert UTC_datetime to POSIXct
-all$ts <- as.POSIXct(all$UTC_datetime, 
+all$UTC_datetime <- as.POSIXct(all$UTC_datetime, 
                         format = "%Y-%m-%d %H:%M:%S") 
 
 ###remove NAs - why are they introduced by the previous code?
 all <- all %>% 
-  filter(!is.na(ts))
+  filter(!is.na(UTC_datetime))
+
+###Sub-sample for consistent sampling rate
+#premade fucntion from research group
+trackSubSamp <- function(TD, dt=1, unit='hours'){
+  
+  ## order the UTC_datetimes
+  TD <- TD[order(TD$UTC_datetime),] 
+  
+  # breakdown to datasets per bird
+  unid = unique(TD$device_id) # the unique tag IDs in your data set
+  nrid = length(unid)
+  TDall = list(nrid)  
+  TDred = list(nrid)
+  timestep = paste(dt,unit)
+  
+  # create time sequence from min to max time with step sizes that are defined at the start of the function
+  dati_start = min(TD$UTC_datetime,na.rm=T)
+  dati_end = max(TD$UTC_datetime,na.rm=T)
+  datiseq = seq(from=dati_start, to=dati_end, by=timestep)
+  
+  for (i in 1:nrid)
+  {
+    Dtemp = TD[TD$device_id == unid[i],]
+    idx = sapply(datiseq, function( x) which.min( abs( difftime( Dtemp$UTC_datetime, x, units='mins') ) ) ) # finds closest time in data to your created time series
+    TDall[[i]] = Dtemp
+    TDred[[i]] = unique( Dtemp[idx,] ) # the function unique makes sure that the rows in Dtemp[idx,] are unique - so no duplicate points
+  }
+  
+  TDred # return this list
+}
+#use function
+list_all <- trackSubSamp(all)
+all_ss <- do.call("rbind", list_all)
 
 ###adding catch date to the dataframe
-all$catch_date <- with(tag, deploy_date[match(all$device_id, ID)])
+all_ss$catch_date <- with(tag, deploy_date[match(all_ss$device_id, ID)])
 #formatting date
-all$catch_date <- as.Date(all$catch_date, format = "%d/%m/%Y")
+all_ss$catch_date <- as.Date(all_ss$catch_date, format = "%d/%m/%Y")
 #creating column for day after
-all$day_after <- all$catch_date+1
+all_ss$day_after <- all_ss$catch_date+1
 #removing data from catch dates
-all <- subset(all, UTC_date != catch_date)
-all <- subset(all, UTC_date != day_after)
+all_ss <- subset(all_ss, UTC_date != catch_date)
+all_ss <- subset(all_ss, UTC_date != day_after)
 
 ###create column with day
 #format UTC-date as a date
-all$UTC_date <- as.Date(all$UTC_date)
+all_ss$UTC_date <- as.Date(all_ss$UTC_date)
 #create a column for days
-all$day <- weekdays(all$UTC_date)
+all_ss$day <- weekdays(all_ss$UTC_date)
 
 ###select columns that are needed
-all <- all %>% 
-  dplyr::select(Longitude, Latitude, ts, day, UTC_date, device_id, species)
+all_ss <- all_ss %>% 
+  dplyr::select(Longitude, Latitude, UTC_datetime, day, UTC_date, device_id, species)
 
 ###filtering to remove migration
 #making a simple feature
-all_sf <- st_as_sf(all, coords=c("Longitude","Latitude"), crs = 4326)
+all_sf <- st_as_sf(all_ss, coords=c("Longitude","Latitude"), crs = 4326)
 #setting coordinates for dublin polygon
 y_coord <- c(53.55, 53.55, 53.29, 53.29, 53.55)
 x_coord <- c(-6.30, -6.00, -6.00, -6.30, -6.30)
@@ -88,7 +122,7 @@ weekend <- c("Saturday","Sunday")
 species <- c(unique(all$species))
 
 ####make track
-all_trk <- make_track(all_df, x, y, ts, day = day, date = UTC_date, 
+all_trk <- make_track(all_df, x, y, UTC_datetime, day = day, date = UTC_date, 
                       id = device_id, species = species,
                       crs = 4326)
 
@@ -139,7 +173,8 @@ hr_results$is_weekend <- hr_results$day %in% c("Saturday", "Sunday")
 #Print the resulting dataframe
 print(hr_results)
 #export to txt file
-write.table(hr_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Home_Range.txt", row.names=FALSE, sep = "\t", quote=FALSE)
+write.table(hr_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Home_Range.txt", 
+            row.names=FALSE, sep = "\t", quote=FALSE)
 
 
 
@@ -147,9 +182,6 @@ write.table(hr_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Home_Range.txt", ro
 
 #-----------------------Step Lengths (rk = 44204 as example)--------------------
 
-
-###timer
-start.time <- Sys.time()
 
 ###loop to create step lengths for each date
 #empty dataframe
@@ -198,7 +230,8 @@ sl_results$is_weekend <- sl_results$day %in% c("Saturday", "Sunday")
 print(sl_results)
 
 #export to txt file
-write.table(sl_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Step_Length.txt", row.names=FALSE, sep = "\t", quote=FALSE)
+write.table(sl_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Step_Length.txt", 
+            row.names=FALSE, sep = "\t", quote=FALSE)
 
 
 ###timer
