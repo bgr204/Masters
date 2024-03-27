@@ -5,15 +5,15 @@ start.time <- Sys.time()
 
 ###uploading files
 #reading in urls from github
-urlfile1 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all22.txt" 
-urlfile2 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all23.txt"
-urlfile3 <- "https://raw.githubusercontent.com/bgr204/Masters/master/tag%20metadata%2021-22.txt"
-urlfile4 <- "https://raw.githubusercontent.com/bgr204/Masters/master/tag%20metadata%2022-23.txt"
+url1 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all22.txt" 
+url2 <- "https://raw.githubusercontent.com/bgr204/Masters/master/all23.txt"
+url3 <- "https://raw.githubusercontent.com/bgr204/Masters/master/tag%20metadata%2021-22.txt"
+url4 <- "https://raw.githubusercontent.com/bgr204/Masters/master/tag%20metadata%2022-23.txt"
 #read url into csv
-all_22 <- read.csv(url(urlfile1), sep = "\t")
-all_23 <- read.csv(url(urlfile2), sep = "\t")
-tag_22 <- read.csv(url(urlfile3), sep = "\t")
-tag_23 <- read.csv(url(urlfile4), sep = "\t")
+all_22 <- read.csv(url(url1), sep = "\t")
+all_23 <- read.csv(url(url2), sep = "\t")
+tag_22 <- read.csv(url(url3), sep = "\t")
+tag_23 <- read.csv(url(url4), sep = "\t")
 #bind years
 all <- rbind(all_22, all_23)
 tag <- rbind(tag_22, tag_23)
