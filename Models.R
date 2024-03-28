@@ -20,6 +20,9 @@ library(effects)
 library(MuMIn)
 library(regclass)
 library(lme4)
+library(jtools)
+library(ggeffects)
+library(sjPlot)
 
 
 #-------------------------Formatting--------------------------------------------
@@ -47,7 +50,7 @@ cor(weather_matrix)
 ###disturbance model without random effects
 #with human_rate
 disturbance_m1 <- glm(data = disturbance, vigilance~wind_speed+
-                      precipitation+cloud+human_rate+tide_state+start_time+location_code, 
+                      precipitation+human_rate+start_time+location_code, 
                       family = "poisson")
 #without human_rate
 disturbance_m2 <- update(disturbance_m1,~.-human_rate)
@@ -57,31 +60,63 @@ anova(disturbance_m1, disturbance_m2, test = "Chisq")
 ###disturbance model with random effects
 #with human_rate
 disturbance_m3 <- glmer(data = disturbance, vigilance~wind_speed+
-                        precipitation+cloud+human_rate+tide_state+start_time+(1|location_code), 
+                        precipitation+start_time+human_rate+(1|location_code), 
                       family = "poisson")
 #without human_rate
 disturbance_m4 <- update(disturbance_m3,~.-human_rate)
 #anova test
 anova(disturbance_m3, disturbance_m4, test = "Chisq")
 
+# Create ggeffects object
+effect <- ggpredict(step_m1, terms = c("is_weekend", "species"))
+
+# Plot marginal effects
+plot(effect)
+
+
+
 
 #-------------------------Step Length Model-------------------------------------
 
-step_length$date <- as.Date(step_length$date)
+step_length$date <- as.factor(step_length$date)
+step_length$species <- as.factor(step_length$species)
+step_length$id <- as.factor(step_length$id)
+step_length$is_weekend <- as.factor(step_length$is_weekend)
 
-step_m1 <- lmer(data = step_length, distance~is_weekend+species+date+(1|id))
+step_m1 <- lmer(data = step_length, distance~is_weekend*species+(1|id))
 step_m2 <- update(step_m1,~.-is_weekend)
 anova(step_m1, step_m2, test = "F")
 
 summary(step_m1)
 
+# Create ggeffects object
+effect <- ggpredict(step_m1, terms = c("is_weekend", "species"))
+
+# Plot marginal effects
+plot(effect)
+
+
+
 
 #-------------------------Home Range Model--------------------------------------
 
+home_range$date <- as.factor(step_length$date)
+home_range$species <- as.factor(step_length$species)
+home_range$id <- as.factor(step_length$id)
+home_range$is_weekend <- as.factor(step_length$is_weekend)
+
 home_range$date <- as.Date(home_range$date)
 
-home_m1 <- lmer(data = home_range, area~is_weekend+species+date+(1|id))
-home_m2 <- update(home_m1,~.-is_weekend)
+home_m1 <- lmer(data = home_range, area~is_weekend*species+(1|id))
+home_m2 <- lmer(data = home_range, area~species+date+(1|id))
 anova(home_m1, home_m2, test = "F")
 
 summary(home_m1)
+
+# Create ggeffects object
+effect <- ggpredict(home_m1, terms = c("is_weekend", "species"))
+
+# Plot marginal effects
+plot(effect)
+
+
