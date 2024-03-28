@@ -314,3 +314,10 @@ any(duplicated(all_df))
 #remove duplicates
 all_df <- all_df[!duplicated(all_df), ]
 all_df <- all_df %>% distinct()
+
+#-----------------------checking for collinearity-------------------------------
+###checking for collinearity in weather data
+#creating a matrix with weather data in
+weather_matrix <- disturbance[,c("cloud","precipitation","wind_speed")]
+#correlation test for collinearity
+cor(weather_matrix)
