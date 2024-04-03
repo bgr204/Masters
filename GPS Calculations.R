@@ -126,6 +126,22 @@ all_trk <- make_track(all_df, x, y, UTC_datetime, day = day, date = UTC_date,
                       id = device_id, species = species,
                       crs = 4326)
 
+###removing days with less than 23 fixes
+#all_trk
+all_trk <- all_trk %>%
+  group_by(id, date) %>%
+  mutate(sampling_rate = n()) %>%
+  ungroup() %>%
+  filter(sampling_rate > 22)
+#all_sf
+all_sf <- all_sf %>%
+  group_by(device_id, UTC_date) %>%
+  mutate(sampling_rate = n()) %>%
+  ungroup() %>%
+  filter(sampling_rate > 22)
+
+
+
 
 
 #-----------------------Home Ranges (rk = 44204 as example) using EKS-----------
@@ -200,10 +216,6 @@ for (k in date_sl) {
   #filter track by date
   sl3 <- all_trk %>%
     filter(date == k)
-  # Skip calculation if number of rows in sl3 is less than 6
-  if (nrow(sl3) < 6) {
-    next  # Skip to the next iteration
-  }
   #calculate step lengths
   sl4 <- step_lengths(sl3) %>%
     #define as a data frame
