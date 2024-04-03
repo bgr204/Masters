@@ -111,12 +111,23 @@ dublin_bb
 #adding major roads
 dublin_major <- dublin_bb %>%
   opq() %>%
-  add_osm_feature(key = "highway") %>%
+  add_osm_feature(key = "highway", value = "footway") %>%
   osmdata_sf()
 
+highway_values <- c("footway", "service", "steps", "path", "unclassified", "tertiary", "track", "residential", "secondary", "cycleway", "pedestrian", "motorway", "tertiary_link", "construction", "motorway_link")
 roads <- dublin_major$osm_lines
 
 all_sf2$nearest_feature <- st_nearest_feature(all_sf2, roads)
+all_sf2$road <- with(roads, highway[all_sf2$nearest_feature])
+all_sf2$distance <- st_distance(all_sf2, roads)
+
+
+
+
+
+
+
+
 
 
 
