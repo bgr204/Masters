@@ -26,8 +26,7 @@ library(lme4)
 library(jtools)
 library(ggeffects)
 library(sjPlot)
-library(glmmTMB)
-
+library(ggplot2)
 
 #-------------------------Formatting--------------------------------------------
 
@@ -46,24 +45,51 @@ disturbance$wind_speed <- as.numeric(factor(disturbance$wind_speed), levels =
 
 #-------------------------Disturbance Models------------------------------------
 
-###disturbance model with random effects
-#with human_rate
-disturbance_m1 <- glmer(data = disturbance, vigilance~wind_speed+
+###disturbance model for vigilance
+#without location
+vig_m1 <- glm(data = disturbance, vigilance~wind_speed+
+                precipitation+start_time+human_rate, 
+              family = "poisson")
+vig_m2 <- update(vig_m1,~.-human_rate)
+anova(vig_m1, vig_m2, test = "Chisq")
+summary(vig_m1)
+ggplot(disturbance, aes(x = human_rate, y = vigilance))+
+  geom_point()+
+  geom_smooth(method = "lm")
+#with location
+vig_m3 <- glmer(data = disturbance, vigilance~wind_speed+
                         precipitation+start_time+human_rate+(1|location_code), 
                         family = "poisson")
-#without human_rate
-disturbance_m2 <- update(disturbance_m1,~.-human_rate)
-#anova test
-anova(disturbance_m1, disturbance_m2, test = "Chisq")
+vig_m4 <- update(vig_m3,~.-human_rate)
+anova(vig_m3, vig_m4, test = "Chisq")
+summary(vig_m3)
+ggplot(disturbance, aes(x = human_rate, y = vigilance, colour = location_code))+
+  geom_point()+
+  geom_line()
 
-summary(disturbance_m1)
 
-# Create ggeffects object
-effect_disturbance <- ggpredict(disturbance_m1, terms = c("human_rate", "precipitation", 
-                                              "start_time", "wind_speed"))
+###disturbance model for flight
+#without location
+fli_m1 <- glm(data = disturbance, flight~wind_speed+
+                precipitation+start_time+human_rate, 
+              family = "poisson")
+fli_m2 <- update(fli_m1,~.-human_rate)
+anova(fli_m1, fli_m2, test = "Chisq")
+summary(fli_m1)
+ggplot(disturbance, aes(x = human_rate, y = flight))+
+  geom_point()+
+  geom_smooth(method = "lm")
+#with location
+fli_m3 <- glmer(data = disturbance, flight~wind_speed+
+                  precipitation+start_time+human_rate+(1|location_code), 
+                family = "poisson")
+fli_m4 <- update(fli_m3,~.-human_rate)
+anova(fli_m3, fli_m4, test = "Chisq")
+summary(fli_m3)
+ggplot(disturbance, aes(x = human_rate, y = flight, colour = location_code))+
+  geom_point()+
+  geom_line()
 
-# Plot marginal effects
-plot(effect_disturbance)
 
 
 
@@ -73,7 +99,7 @@ plot(effect_disturbance)
 step_length$species <- as.factor(step_length$species)
 step_length$id <- as.factor(step_length$id)
 step_length$is_weekend <- as.factor(step_length$is_weekend)
-step_length$date <- as.Date(step_length$date)
+
 
 step_m1 <- lmer(data = step_length, distance~is_weekend*species+(1|id))
 step_m2 <- lmer(data = step_length, distance~is_weekend+species+(1|id))
@@ -89,6 +115,13 @@ effect_step <- ggpredict(step_m1, terms = c("is_weekend", "species"))
 # Plot marginal effects
 plot(effect_step)
 
+step_length$predicted <- predict(step_m2, newdata = step_length)
+
+ggplot(step_length, aes(x = is_weekend, y = predicted, colour = species)) +
+  geom_boxplot() +  # Add actual data points
+  stat_summary(fun = median, aes(group = species, color = species), geom = "point", shape = 18, size = 3, position = position_dodge(width = 0.75)) +  # Add median points
+  stat_summary(fun = median, aes(group = species, color = species), geom = "line", linetype = "dashed", size = 0.75, position = position_dodge(width = 0.75)) +  # Add lines between medians
+  labs(title = "Daily Distance", x = "Weekend", y = "Daily Distance (km)")
 
 
 
@@ -97,6 +130,7 @@ plot(effect_step)
 home_range$species <- as.factor(home_range$species)
 home_range$id <- as.factor(home_range$id)
 home_range$is_weekend <- as.factor(home_range$is_weekend)
+home_range$area <- home_range$area/1000000
 
 home_m1 <- lmer(data = home_range, area~is_weekend*species+(1|id))
 home_m2 <- lmer(data = home_range, area~is_weekend+species+(1|id))
@@ -112,4 +146,13 @@ effect_home <- ggpredict(home_m1, terms = c("is_weekend", "species"))
 # Plot marginal effects
 plot(effect_home)
 
+# Generate predictions
+home_range$predicted <- predict(home_m2, newdata = home_range)
+
+# Create plot
+ggplot(home_range, aes(x = is_weekend, y = predicted, colour = species)) +
+  geom_boxplot() +  # Add actual data points
+  stat_summary(fun = median, aes(group = species, color = species), geom = "point", shape = 18, size = 4, position = position_dodge(width = 0.75)) +  # Add median points
+  stat_summary(fun = median, aes(group = species, color = species), geom = "line", linetype = "dashed", position = position_dodge(width = 0.75)) +  # Add lines between medians
+  labs(title = "Home Range", x = "Weekend", y = "Area of Home Range (km^2)")
 
