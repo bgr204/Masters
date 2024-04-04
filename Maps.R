@@ -109,14 +109,32 @@ rownames(dublin_bb) <- c("x", "y")
 # Print the matrix to the console
 dublin_bb
 
-#adding major roads
-dublin_major <- dublin_bb %>%
+highway_values <- c("footway", "service", "steps", "path", "unclassified", "tertiary", "track", "residential", "secondary", "cycleway", "pedestrian", "motorway", "tertiary_link", "construction", "motorway_link")
+
+roads1 <- dublin_bb %>%
   opq() %>%
   add_osm_feature(key = "highway") %>%
   osmdata_sf()
 
-highway_values <- c("footway", "service", "steps", "path", "unclassified", "tertiary", "track", "residential", "secondary", "cycleway", "pedestrian", "motorway", "tertiary_link", "construction", "motorway_link")
-roads <- dublin_major$osm_lines
+roads2 <- roads1$osm_lines
+dtr_results <- data.frame()
+device_id <- c(unique(all_sf2$device_id))
+  
+for (i in device_id) {
+dtr1 <- all_sf2 %>%
+  filter(device_id == 216281)
+dtr1$distance <- apply(st_distance(dtr1, roads2), 1, min)
+dtr_results <- rbind(dtr_results, dtr1)
+}
+
+#adding major roads
+dublin3 <- dublin_bb %>%
+  opq() %>%
+  add_osm_feature(key = "highway", value = "footway") %>%
+  osmdata_sf()
+
+
+roads <- dublin3$osm_lines
 
 all_sf2$nearest_feature <- st_nearest_feature(all_sf2, roads)
 all_sf2$road <- with(roads, highway[all_sf2$nearest_feature])
