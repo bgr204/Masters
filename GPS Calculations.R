@@ -126,20 +126,39 @@ all_trk <- make_track(all_df, x, y, UTC_datetime, day = day, date = UTC_date,
                       id = device_id, species = species,
                       crs = 4326)
 
-###removing days with less than 23 fixes
+###removing days with less than 23 fixes for GOD, CU and RK
 #all_trk
-all_trk <- all_trk %>%
+all_trk_other <- all_trk %>%
+  filter(species %in% c("RK","GOD","CU")) %>%
   group_by(id, date) %>%
   mutate(sampling_rate = n()) %>%
   ungroup() %>%
   filter(sampling_rate > 22)
 #all_sf
-all_sf <- all_sf %>%
+all_sf_other <- all_sf %>%
+  filter(species %in% c("RK","GOD","CU")) %>%
   group_by(device_id, UTC_date) %>%
   mutate(sampling_rate = n()) %>%
   ungroup() %>%
   filter(sampling_rate > 22)
-
+###removing days with less than 11 fixes for OYC
+#all_trk
+all_trk_oyc <- all_trk %>%
+  filter(species == "OYC") %>%
+  group_by(id, date) %>%
+  mutate(sampling_rate = n()) %>%
+  ungroup() %>%
+  filter(sampling_rate > 10)
+#all_sf
+all_sf_oyc <- all_sf %>%
+  filter(species == "OYC") %>%
+  group_by(device_id, UTC_date) %>%
+  mutate(sampling_rate = n()) %>%
+  ungroup() %>%
+  filter(sampling_rate > 10)
+#bind back together
+all_trk <- rbind(all_trk_other, all_trk_oyc)
+all_sf <- rbind(all_sf_other, all_sf_oyc)
 
 
 
@@ -250,3 +269,4 @@ write.table(sl_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Step_Length.txt",
 end.time <- Sys.time()
 print(round(end.time-start.time,2))
 
+beepr::beep(0.5, 1)
