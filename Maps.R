@@ -99,53 +99,55 @@ all_trk2 <- make_track(all_df2, x, y, UTC_datetime, day = day, date = UTC_date,
 
 #-------------------------Distance to roads-------------------------------------
 
-# A 2x2 matrix
+###create matrix of coordinates for dublin area
 dublin_bb <- matrix(data = c(-6.3, -6, 53.29, 53.55),
                     nrow = 2,
                     byrow = TRUE)
 # Update column and row names
 colnames(dublin_bb) <- c("min", "max")
 rownames(dublin_bb) <- c("x", "y")
-# Print the matrix to the console
-dublin_bb
 
-highway_values <- c("footway", "service", "steps", "path", "unclassified", "tertiary", "track", "residential", "secondary", "cycleway", "pedestrian", "motorway", "tertiary_link", "construction", "motorway_link")
-
+###create a map of highways using osmdata
 roads1 <- dublin_bb %>%
+  #use this to make coordinates into a map
   opq() %>%
+  #add highway data
   add_osm_feature(key = "highway") %>%
+  #make into a simple feature
   osmdata_sf()
 
+###extract highway lines from map
 roads2 <- roads1$osm_lines
-dtr_results <- data.frame()
+
+###calculate distance from gps points to nearest highway feature
+#create list of ids (to make calculations smaller)
 device_id <- c(unique(all_sf2$device_id))
-  
+###create an empty data frame
+dtr_results <- data.frame()
+#for loop to run each device id through st_distance function
 for (i in device_id) {
-dtr1 <- all_sf2 %>%
-  filter(device_id == 216281)
-dtr1$distance <- apply(st_distance(dtr1, roads2), 1, min)
-dtr_results <- rbind(dtr_results, dtr1)
+  #filter for each device id
+  dtr1 <- all_sf2 %>%
+    filter(device_id == i)
+  #calculate distance to nearest highway
+  dtr1$distance <- apply(st_distance(dtr1, roads2), 1, min)
+  #bind results to empty data frame
+  dtr_results <- rbind(dtr_results, dtr1)
 }
-
-#adding major roads
-dublin3 <- dublin_bb %>%
-  opq() %>%
-  add_osm_feature(key = "highway", value = "footway") %>%
-  osmdata_sf()
-
-
-roads <- dublin3$osm_lines
-
-all_sf2$nearest_feature <- st_nearest_feature(all_sf2, roads)
-all_sf2$road <- with(roads, highway[all_sf2$nearest_feature])
-all_sf2$distance <- st_distance(all_sf2, roads)
-all_df2 <- sf_to_df(all_sf2, fill = TRUE)
-
-write.table(all_df2, "C:\\Users\\bgroo\\Desktop\\Masters\\Distance_to_Road.txt", 
+#find what the nearest feature is
+dtr_results$nearest_feature <- st_nearest_feature(dtr_results, roads2)
+#convert index into name of road type
+dtr_results$road <- with(roads, highway[dtr_results$nearest_feature])
+#convert to data frame
+dtr_results <- sf_to_df(dtr_results, fill = TRUE)
+#save results in txt file
+write.table(dtr_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Distance_to_Road.txt", 
             row.names=FALSE, sep = "\t", quote=FALSE)
 
 ###timer
 end.time <- Sys.time()
 print(round(end.time-start.time,2))
+
+###Alarm
 beepr::beep(0.5, 1)
 
