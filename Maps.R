@@ -31,6 +31,7 @@ library(magrittr)
 library(eks)
 library(osmdata)
 library(raster)
+library(beepr)
 
 ###changing format of coordinates
 all2$Longitude <- as.numeric(all2$Longitude)
@@ -111,7 +112,7 @@ dublin_bb
 #adding major roads
 dublin_major <- dublin_bb %>%
   opq() %>%
-  add_osm_feature(key = "highway", value = "footway") %>%
+  add_osm_feature(key = "highway") %>%
   osmdata_sf()
 
 highway_values <- c("footway", "service", "steps", "path", "unclassified", "tertiary", "track", "residential", "secondary", "cycleway", "pedestrian", "motorway", "tertiary_link", "construction", "motorway_link")
@@ -120,35 +121,13 @@ roads <- dublin_major$osm_lines
 all_sf2$nearest_feature <- st_nearest_feature(all_sf2, roads)
 all_sf2$road <- with(roads, highway[all_sf2$nearest_feature])
 all_sf2$distance <- st_distance(all_sf2, roads)
+all_df2 <- sf_to_df(all_sf2, fill = TRUE)
 
-
-
-
-
-
-
-
-
-
-
-
-
-#creating first plot
-street_plot <- ggplot() +
-  geom_sf(data = dublin_major$osm_lines,
-          inherit.aes = FALSE,
-          color = "black",
-          size = 0.2)
-
-track_plot <- street_plot + 
-  geom_point(data = all_trk,
-             mapping = aes(x = x_, y = y_),
-             color = "#B8562B", # an orange to match the species' shoulders
-             size = 1, 
-             inherit.aes = FALSE)
-track_plot
+write.table(all_df2, "C:\\Users\\bgroo\\Desktop\\Masters\\Distance_to_Road.txt", 
+            row.names=FALSE, sep = "\t", quote=FALSE)
 
 ###timer
 end.time <- Sys.time()
 print(round(end.time-start.time,2))
+beepr::beep(0.5, 1)
 
