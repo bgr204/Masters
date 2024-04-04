@@ -321,3 +321,25 @@ all_df <- all_df %>% distinct()
 weather_matrix <- disturbance[,c("cloud","precipitation","wind_speed")]
 #correlation test for collinearity
 cor(weather_matrix)
+
+
+#-------------------------plotting maps-----------------------------------------
+
+
+#creating first plot
+street_plot <- ggplot() +
+  geom_sf(data = dublin_major$osm_lines,
+          inherit.aes = FALSE,
+          color = "black",
+          size = 0.2)
+
+track_plot <- street_plot + 
+  geom_point(data = all_trk,
+             mapping = aes(x = x_, y = y_),
+             color = "#B8562B", # an orange to match the species' shoulders
+             size = 1, 
+             inherit.aes = FALSE)
+track_plot
+
+
+
