@@ -22,16 +22,28 @@ tag2 <- rbind(tag_22, tag_23)
 ###library
 library(sf)
 library(sfheaders)
-library(amt)
 library(dplyr)
 library(ggplot2)
 library(tidygraph)
 library(ggraph)
 library(magrittr)
-library(eks)
 library(osmdata)
 library(raster)
 library(beepr)
+library(circular)
+library(Bessel)
+library(fasttime)
+library(Gmedian)
+library(manipulate)
+library(parsedate)
+library(ctmm)
+library(fitdistrplus)
+library(amt)
+library(proj4)
+library(PROJ)
+library(crsmeta)
+library(reproj)
+library(osmdata)
 
 ###changing format of coordinates
 all2$Longitude <- as.numeric(all2$Longitude)
@@ -137,11 +149,11 @@ for (i in device_id) {
 #find what the nearest feature is
 dtr_results$nearest_feature <- st_nearest_feature(dtr_results, roads2)
 #convert index into name of road type
-dtr_results$road <- with(roads, highway[dtr_results$nearest_feature])
+dtr_results$road <- with(roads2, highway[dtr_results$nearest_feature])
 #convert to data frame
 dtr_results <- sf_to_df(dtr_results, fill = TRUE)
 #save results in txt file
-write.table(dtr_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Distance_to_Road.txt", 
+write.table(dtr_results, "Distance_to_Road.txt", 
             row.names=FALSE, sep = "\t", quote=FALSE)
 
 ###timer
@@ -150,4 +162,5 @@ print(round(end.time-start.time,2))
 
 ###Alarm
 beepr::beep(0.5, 1)
+
 
