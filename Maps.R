@@ -22,16 +22,28 @@ tag2 <- rbind(tag_22, tag_23)
 ###library
 library(sf)
 library(sfheaders)
-library(amt)
 library(dplyr)
 library(ggplot2)
 library(tidygraph)
 library(ggraph)
 library(magrittr)
-library(eks)
 library(osmdata)
 library(raster)
 library(beepr)
+library(circular)
+library(Bessel)
+library(fasttime)
+library(Gmedian)
+library(manipulate)
+library(parsedate)
+library(ctmm)
+library(fitdistrplus)
+library(amt)
+library(proj4)
+library(PROJ)
+library(crsmeta)
+library(reproj)
+library(osmdata)
 
 ###changing format of coordinates
 all2$Longitude <- as.numeric(all2$Longitude)
@@ -150,4 +162,5 @@ print(round(end.time-start.time,2))
 
 ###Alarm
 beepr::beep(0.5, 1)
+
 
