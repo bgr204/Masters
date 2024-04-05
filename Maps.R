@@ -149,11 +149,11 @@ for (i in device_id) {
 #find what the nearest feature is
 dtr_results$nearest_feature <- st_nearest_feature(dtr_results, roads2)
 #convert index into name of road type
-dtr_results$road <- with(roads, highway[dtr_results$nearest_feature])
+dtr_results$road <- with(roads2, highway[dtr_results$nearest_feature])
 #convert to data frame
 dtr_results <- sf_to_df(dtr_results, fill = TRUE)
 #save results in txt file
-write.table(dtr_results, "C:\\Users\\bgroo\\Desktop\\Masters\\Distance_to_Road.txt", 
+write.table(dtr_results, "Distance_to_Road.txt", 
             row.names=FALSE, sep = "\t", quote=FALSE)
 
 ###timer
