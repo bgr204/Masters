@@ -5,13 +5,14 @@ url5 <- "https://raw.githubusercontent.com/bgr204/Masters/master/disturbance.csv
 url6 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Step_Length.txt"
 url7 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Home_Range.txt"
 url8 <- "https://raw.githubusercontent.com/bgr204/Masters/master/disturbance_no_nas.csv"
+url9 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Distance_to_Road.txt"
 
 ###read url into csv
 disturbance <- read.csv(url(url5), sep = ",")
 disturbance2 <- read.csv(url(url8), sep = ",")
 step_length <- read.csv(url(url6), sep = "\t")
 home_range <- read.csv(url(url7), sep = "\t")
-
+road_distance <- read.csv(url(url9), sep = "\t")
 
 
 
@@ -27,6 +28,8 @@ library(jtools)
 library(ggeffects)
 library(sjPlot)
 library(ggplot2)
+library(EnvStats)
+library(forecast)
 
 #-------------------------Formatting--------------------------------------------
 
@@ -41,6 +44,36 @@ disturbance$precipitation <- ifelse(disturbance$precipitation > 0, 1, 0)
 disturbance$wind_speed <- as.numeric(factor(disturbance$wind_speed), levels = 
                                      c("0-10","10-20","20-30","30-40","40-50"))
 
+
+
+#-------------------------Optimal Lambda Function-------------------------------
+
+find_optimal_lambda <- function(data) {
+  
+  # Sequence of lambda values to test
+  lambda_seq <- seq(-2, 2, by = 0.1)
+  
+  # Function to compute skewness
+  compute_skewness <- function(x) {
+    mean((x - mean(x))^3) / (sd(x)^3)
+  }
+  
+  # Container for skewness values
+  skewness_values <- numeric(length(lambda_seq))
+  
+  # Perform Box-Cox transformation for each lambda value
+  for (i in seq_along(lambda_seq)) {
+    transformed_data <- BoxCox(data, lambda_seq[i])
+    skewness_values[i] <- compute_skewness(transformed_data)
+  }
+  
+  # Find the lambda value with the smallest skewness
+  optimal_lambda <- lambda_seq[which.min(abs(skewness_values))]
+  
+  # Apply Box-Cox transformation with optimal lambda
+  data <- BoxCox(data, optimal_lambda)
+
+}
 
 
 #-------------------------Disturbance Models------------------------------------
@@ -156,3 +189,55 @@ ggplot(home_range, aes(x = is_weekend, y = predicted, colour = species)) +
   stat_summary(fun = median, aes(group = species, color = species), geom = "line", linetype = "dashed", position = position_dodge(width = 0.75)) +  # Add lines between medians
   labs(title = "Home Range", x = "Weekend", y = "Area of Home Range (km^2)")
 
+
+#-------------------------Distance to Road Models-------------------------------
+
+#change format of date
+road_distance$UTC_date <- as.Date(road_distance$UTC_date)
+#add column with weekday
+road_distance$day <- weekdays(road_distance$UTC_date)
+#creating a column for weekend or not
+road_distance$is_weekend <- road_distance$day %in% c("Saturday", "Sunday")
+
+road_distance$species <- as.factor(road_distance$species)
+road_distance$device_id <- as.factor(road_distance$device_id)
+road_distance$is_weekend <- as.factor(road_distance$is_weekend)
+road_distance$road <- as.factor(road_distance$road)
+road_distance$log_road <- sqrt(road_distance$distance)
+
+# Sequence of lambda values to test
+lambda_seq <- seq(-2, 2, by = 0.1)
+
+# Function to compute skewness
+compute_skewness <- function(x) {
+  mean((x - mean(x))^3) / (sd(x)^3)
+}
+
+# Container for skewness values
+skewness_values <- numeric(length(lambda_seq))
+
+# Perform Box-Cox transformation for each lambda value
+for (i in seq_along(lambda_seq)) {
+  transformed_data <- BoxCox(road_distance$distance, lambda_seq[i])
+  skewness_values[i] <- compute_skewness(transformed_data)
+}
+
+# Plot skewness values for different lambda values
+plot(lambda_seq, skewness_values, type = "l", xlab = "Lambda", ylab = "Skewness")
+
+# Find the lambda value with the smallest skewness
+optimal_lambda <- lambda_seq[which.min(abs(skewness_values))]
+cat("Optimal lambda:", optimal_lambda, "\n")
+
+# Apply Box-Cox transformation with optimal lambda
+road_distance$tf_distance <- BoxCox(road_distance$distance, optimal_lambda)
+
+# Plot histogram of transformed data
+hist(road_distance$tf_distance, breaks = 100)
+
+road_m1 <- lmer(data = road_distance, tf_distance~is_weekend*species+road+(1|device_id))
+road_m2 <- lmer(data = road_distance, tf_distance~is_weekend+species+road+(1|device_id))
+road_m3 <- update(road_m2,~.-is_weekend)
+anova()
+
+road_distance$tf_distance <- find_optimal_lambda(road_distance$distance)
