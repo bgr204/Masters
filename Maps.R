@@ -151,9 +151,49 @@ dtr_results$nearest_feature <- st_nearest_feature(dtr_results, roads2)
 #convert index into name of road type
 dtr_results$road <- with(roads2, highway[dtr_results$nearest_feature])
 #convert to data frame
-dtr_results <- sf_to_df(dtr_results, fill = TRUE)
+road_distance <- sf_to_df(dtr_results, fill = TRUE)
+
+###formatting
+#change format of date
+road_distance$UTC_date <- as.Date(road_distance$UTC_date)
+#add column with weekday
+road_distance$day <- weekdays(road_distance$UTC_date)
+#creating a column for weekend or not
+road_distance$is_weekend <- road_distance$day %in% c("Saturday", "Sunday")
+#grouping road types
+road_distance$road_group <- ifelse(road_distance$road %in% c("footway","steps","path","cycleway","pedestrian"), "footpath",
+                                   ifelse(road_distance$road %in% c("service","unclassified","track","residential","residential"), "minor_road",
+                                          ifelse(road_distance$road %in% c("tertiary","secondary","tertiary_link"), "major_road",
+                                                 ifelse(road_distance$road %in% c("motorway","motorway_link"), "motorway", NA))))
+###creating a time column
+road_distance$time <- as.POSIXct(road_distance$UTC_datetime, format = "%Y-%m-%d %H:%M:%S")
+road_distance$time <- format(road_distance$time, format = "%H")
+
+####as.factor
+road_distance$species <- as.factor(road_distance$species)
+road_distance$device_id <- as.factor(road_distance$device_id)
+road_distance$is_weekend <- as.factor(road_distance$is_weekend)
+road_distance$road_group <- as.factor(road_distance$road_group)
+
+###creating daylight column
+#create function
+is_daylight <- function(datetime, latitude, longitude) {
+  # Calculate sunrise and sunset times
+  times <- suncalc::getSunlightTimes(date = as.Date(datetime), lat = latitude, lon = longitude)
+  
+  # Determine if it's daylight
+  daylight <- datetime >= times$sunrise && datetime <= times$sunset
+  
+  return(daylight)
+}
+#apply the function to the dataset
+road_distance$daylight <- mapply(is_daylight, road_distance$UTC_datetime, road_distance$y, road_distance$x)
+
+#remove NAs
+road_distance <- na.omit(road_distance)
+
 #save results in txt file
-write.table(dtr_results, "Distance_to_Road.txt", 
+write.table(road_distance, "Distance_to_Road.txt", 
             row.names=FALSE, sep = "\t", quote=FALSE)
 
 ###timer
@@ -162,5 +202,7 @@ print(round(end.time-start.time,2))
 
 ###Alarm
 beepr::beep(0.5, 1)
+
+
 
 
