@@ -6,6 +6,8 @@ url6 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Step_Length.txt
 url7 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Home_Range.txt"
 url8 <- "https://raw.githubusercontent.com/bgr204/Masters/master/disturbance_no_nas.csv"
 url9 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Distance_to_Road.txt"
+url10 <- "https://raw.githubusercontent.com/bgr204/Masters/master/MSc%20projects/Tides/tide%20tables%2021-22.csv"
+url11 <- "https://raw.githubusercontent.com/bgr204/Masters/master/MSc%20projects/Tides/tide%20tables%2022-23.csv"
 
 ###read url into csv
 disturbance <- read.csv(url(url5), sep = ",")
@@ -13,8 +15,26 @@ disturbance2 <- read.csv(url(url8), sep = ",")
 step_length <- read.csv(url(url6), sep = "\t")
 home_range <- read.csv(url(url7), sep = "\t")
 road_distance <- read.csv(url(url9), sep = "\t")
+tide22 <- read.csv(url(url10), sep = ",")
+tide23 <- read.csv(url(url11), sep = ",")
 
-
+###creating longdata for tides
+tide_all <- rbind(tide22,tide23)
+high_1 <- tide_all %>%
+  dplyr::select(date, high_1, height_high_1)
+names(high_1) <- c("date", "time", "tide_height")
+low_1 <- tide_all %>%
+  dplyr::select(date, low_1, height_low_1)
+names(low_1) <- c("date", "time", "tide_height")
+high_2 <- tide_all %>%
+  dplyr::select(date, high_2, height_high_2)
+names(high_2) <- c("date", "time", "tide_height")
+low_2 <- tide_all %>%
+  dplyr::select(date, low_2, height_low_2)
+names(low_2) <- c("date", "time", "tide_height")
+tides <- rbind(high_1,low_1,high_2,low_2)
+tides$datetime <- as.POSIXct(paste(tide_states$date, tide_states$time), format = "%Y-%m-%d %H:%M:%S")
+tides <- na.omit(tides)
 
 #-------------------------Library-----------------------------------------------
 
@@ -32,6 +52,7 @@ library(EnvStats)
 library(forecast)
 library(moments)
 library(car)
+library(suncalc)
 
 #-------------------------Formatting--------------------------------------------
 
@@ -287,19 +308,6 @@ ggplot(home_range, aes(x = is_weekend, y = predicted, colour = species)) +
 
 #-------------------------Distance to Road Models-------------------------------
 
-###formatting
-#change format of date
-road_distance$UTC_date <- as.Date(road_distance$UTC_date)
-#add column with weekday
-road_distance$day <- weekdays(road_distance$UTC_date)
-#creating a column for weekend or not
-road_distance$is_weekend <- road_distance$day %in% c("Saturday", "Sunday")
-#as.factor
-road_distance$species <- as.factor(road_distance$species)
-road_distance$device_id <- as.factor(road_distance$device_id)
-road_distance$is_weekend <- as.factor(road_distance$is_weekend)
-road_distance$road <- as.factor(road_distance$road)
-
 ###checking normality
 #histogram of distance
 hist(road_distance$distance, breaks = 30)
@@ -321,27 +329,51 @@ jarque.test(road_distance$tf_distance)
 
 ###non parametric mixed effects model
 #with interaction
-road_m1 <- lmer(data = road_distance, tf_distance~is_weekend*species+(1|device_id))
+road_m1 <- lmer(data = road_distance, tf_distance~time*is_weekend*species+road_group+(1|device_id))
 #non parametric type III anova
 Anova(road_m1, type = "III", test = "Chisq")
+#without weekend
+road_m2 <- lmer(data = road_distance, tf_distance~time+species+road_group+time:species+(1|device_id))
+#non parametric type III anova
+Anova(road_m2, type = "III", test = "Chisq")
 #summary
-summary(road_m1)
+summary(road_m2)
 
 ###plotting with ggeffect
 # Create ggeffects object
-effect_road <- ggpredict(road_m1, terms = c("is_weekend", "species"))
-# Plot marginal effects
-plot(effect_road)
+effect_road_1 <- as.data.frame(ggpredict(road_m1, terms = c("road_group")))
 
-###plotting with ggplot
-#generate predictions
-road_distance$predicted <- predict(road_m1, newdata = road_distance)
-#create plot
-ggplot(road_distance, aes(x = is_weekend, y = predicted, colour = species)) +
-  geom_boxplot() +  # Add actual data points
-  stat_summary(fun = median, aes(group = species, color = species), geom = "point", shape = 18, size = 4, position = position_dodge(width = 0.75)) +  # Add median points
-  stat_summary(fun = median, aes(group = species, color = species), geom = "line", linetype = "dashed", position = position_dodge(width = 0.75)) +  # Add lines between medians
-  labs(title = "Distance to Road", x = "Weekend", y = "Distance to Road (m)")
-                                                                         
+#showing effect of road type on distance
+mean_pred <- mean(effect_road$predicted)
+ggplot(effect_road_1, aes(x = x, y = predicted)) +
+  geom_point() +                                                  
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1) + 
+  geom_hline(yintercept = mean_pred, linetype = "dashed", color = "red") 
+
+road_distance$predicted <- predict(road_m2, newdata = road_distance)
+ggplot(road_distance, aes(x = road_group, y = predicted))+
+  geom_boxplot(outlier.shape = NA)+
+  scale_y_continuous(limits = c(10, 60)) 
+
+
+effect_road_2 <- as.data.frame(ggpredict(road_m1, terms = c("time","species")))
+effect_road_2$theta <- (as.numeric(effect_road_2$x) - 1) * 2 * pi / 24
+effect_road_2$diff <- effect_road_2$predicted-min(effect_road_2$predicted)
+ggplot(effect_road_2, aes(x = theta, y = predicted, fill = group)) +
+  geom_bar(stat = "identity", width = 2 * pi / 24) +
+  coord_polar(start = 0)+
+  facet_wrap(~ group)
+
+ggplot(effect_road_2, aes(x = as.numeric(x), y = predicted, colour = group))+
+  geom_point()+
+  geom_line()+
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1)
+
+
+
+
+
+
+
 
 
