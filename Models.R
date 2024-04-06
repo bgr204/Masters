@@ -33,7 +33,7 @@ low_2 <- tide_all %>%
   dplyr::select(date, low_2, height_low_2)
 names(low_2) <- c("date", "time", "tide_height")
 tides <- rbind(high_1,low_1,high_2,low_2)
-tides$datetime <- as.POSIXct(paste(tide_states$date, tide_states$time), format = "%Y-%m-%d %H:%M:%S")
+tides$datetime <- as.POSIXct(paste(tides$date, tides$time), format = "%Y-%m-%d %H:%M:%S")
 tides <- na.omit(tides)
 
 #-------------------------Library-----------------------------------------------
@@ -67,6 +67,7 @@ disturbance$precipitation <- as.numeric(factor(disturbance$precipitation,
 disturbance$precipitation <- ifelse(disturbance$precipitation > 0, 1, 0)
 disturbance$wind_speed <- as.numeric(factor(disturbance$wind_speed), levels = 
                                      c("0-10","10-20","20-30","30-40","40-50"))
+disturbance$birds <- (disturbance$birds_end+disturbance$birds_start)/2
 
 
 
@@ -148,30 +149,32 @@ jarque.test(disturbance$tf_vigilance)
 ###disturbance model for vigilance
 #without location
 vig_m1 <- glm(data = disturbance, vigilance~wind_speed+
-                precipitation+start_time+human_rate, 
+                precipitation+birds+human_rate, 
               family = "poisson")
 vig_m2 <- update(vig_m1,~.-human_rate)
 anova(vig_m1, vig_m2, test = "Chisq")
 summary(vig_m1)
-ggplot(disturbance, aes(x = human_rate, y = vigilance))+
+effect_dist_1 <- as.data.frame(ggpredict(vig_m1, terms = c("human_rate")))
+ggplot(effect_dist_1, aes(x = x, y = predicted))+
   geom_point()+
   geom_smooth(method = "lm")
 #with location
 vig_m3 <- glmer(data = disturbance, vigilance~wind_speed+
-                        precipitation+start_time+human_rate+(1|location_code), 
+                        precipitation+birds+human_rate+(1|location_code), 
                         family = "poisson")
 vig_m4 <- update(vig_m3,~.-human_rate)
 anova(vig_m3, vig_m4, test = "Chisq")
 summary(vig_m3)
-ggplot(disturbance, aes(x = human_rate, y = vigilance, colour = location_code))+
-  geom_point()+
-  geom_line()
+effect_dist_2 <- as.data.frame(ggpredict(vig_m3, terms = c("human_rate")))
+ggplot(effect_dist_2, aes(x = x, y = predicted))+
+  geom_point() +
+  geom_smooth(method = "lm")
 
 
 ###disturbance model for flight
 #without location
 fli_m1 <- glm(data = disturbance, flight~wind_speed+
-                precipitation+start_time+human_rate, 
+                precipitation+birds+human_rate, 
               family = "poisson")
 fli_m2 <- update(fli_m1,~.-human_rate)
 anova(fli_m1, fli_m2, test = "Chisq")
@@ -308,6 +311,20 @@ ggplot(home_range, aes(x = is_weekend, y = predicted, colour = species)) +
 
 #-------------------------Distance to Road Models-------------------------------
 
+###formatting
+####as.factor
+road_distance$species <- as.factor(road_distance$species)
+road_distance$device_id <- as.factor(road_distance$device_id)
+road_distance$is_weekend <- as.factor(road_distance$is_weekend)
+road_distance$road_group <- as.factor(road_distance$road_group)
+road_distance$daylight <- as.factor(road_distance$daylight)
+road_distance$time <- as.POSIXct(road_distance$UTC_datetime, format = "%Y-%m-%d %H:%M:%S")
+road_distance$time <- format(road_distance$time, format = "%H")
+#formatting time
+road_distance$time2 <- as.numeric(road_distance$time)
+road_distance$sin_time <- as.numeric(sin(2 * pi * road_distance$time2 / 24))
+road_distance$cos_time <- as.numeric(cos(2 * pi * road_distance$time2 / 24))
+
 ###checking normality
 #histogram of distance
 hist(road_distance$distance, breaks = 30)
@@ -329,47 +346,46 @@ jarque.test(road_distance$tf_distance)
 
 ###non parametric mixed effects model
 #with interaction
-road_m1 <- lmer(data = road_distance, tf_distance~time*is_weekend*species+road_group+(1|device_id))
+road_m1 <- lmer(data = road_distance, tf_distance~time+species+road_group+daylight+species:time+species:daylight+(1|device_id))
 #non parametric type III anova
 Anova(road_m1, type = "III", test = "Chisq")
-#without weekend
-road_m2 <- lmer(data = road_distance, tf_distance~time+species+road_group+time:species+(1|device_id))
-#non parametric type III anova
-Anova(road_m2, type = "III", test = "Chisq")
 #summary
-summary(road_m2)
+summary(road_m1)
 
 ###plotting with ggeffect
 # Create ggeffects object
 effect_road_1 <- as.data.frame(ggpredict(road_m1, terms = c("road_group")))
 
 #showing effect of road type on distance
-mean_pred <- mean(effect_road$predicted)
+mean_pred <- mean(effect_road_1$predicted)
 ggplot(effect_road_1, aes(x = x, y = predicted)) +
   geom_point() +                                                  
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1) + 
   geom_hline(yintercept = mean_pred, linetype = "dashed", color = "red") 
 
-road_distance$predicted <- predict(road_m2, newdata = road_distance)
+road_distance$predicted <- predict(road_m1, newdata = road_distance)
 ggplot(road_distance, aes(x = road_group, y = predicted))+
   geom_boxplot(outlier.shape = NA)+
   scale_y_continuous(limits = c(10, 60)) 
 
 
 effect_road_2 <- as.data.frame(ggpredict(road_m1, terms = c("time","species")))
-effect_road_2$theta <- (as.numeric(effect_road_2$x) - 1) * 2 * pi / 24
-effect_road_2$diff <- effect_road_2$predicted-min(effect_road_2$predicted)
-ggplot(effect_road_2, aes(x = theta, y = predicted, fill = group)) +
-  geom_bar(stat = "identity", width = 2 * pi / 24) +
-  coord_polar(start = 0)+
-  facet_wrap(~ group)
-
 ggplot(effect_road_2, aes(x = as.numeric(x), y = predicted, colour = group))+
   geom_point()+
   geom_line()+
   geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1)
 
+effect_road_3 <- as.data.frame(ggpredict(road_m1, terms = c("daylight", "species")))
+ggplot(effect_road_3, aes(x = x, y = predicted, colour = group))+
+  geom_point()+
+  geom_line(aes(group = group), linetype = "dashed") +  
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1)
 
+effect_road_4 <- as.data.frame(ggpredict(road_m1, terms = c("is_weekend", "species")))
+ggplot(effect_road_4, aes(x = x, y = predicted, colour = group))+
+  geom_point()+
+  geom_line(aes(group = group), linetype = "dashed") +  
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), width = 0.1)
 
 
 
