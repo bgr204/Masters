@@ -169,11 +169,6 @@ road_distance$road_group <- ifelse(road_distance$road %in% c("footway","steps","
 road_distance$time <- as.POSIXct(road_distance$UTC_datetime, format = "%Y-%m-%d %H:%M:%S")
 road_distance$time <- format(road_distance$time, format = "%H")
 
-####as.factor
-road_distance$species <- as.factor(road_distance$species)
-road_distance$device_id <- as.factor(road_distance$device_id)
-road_distance$is_weekend <- as.factor(road_distance$is_weekend)
-road_distance$road_group <- as.factor(road_distance$road_group)
 
 ###creating daylight column
 #create function
