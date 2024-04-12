@@ -270,3 +270,14 @@ end.time <- Sys.time()
 print(round(end.time-start.time,2))
 
 beepr::beep(0.5, 1)
+
+length(unique(all$device_id))
+
+length(unique(all$device_id[all$species == "RK"]))
+
+length(unique(all$device_id[all$species == "OYC"]))
+
+length(unique(all$device_id[all$species == "CU"]))
+
+length(unique(all$device_id[all$species == "GOD"]))
+
