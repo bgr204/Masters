@@ -1,22 +1,23 @@
 #-------------------------Importing data----------------------------------------
 
+###timer
+start.time <- Sys.time()
+
 ###reading in urls from github
 url5 <- "https://raw.githubusercontent.com/bgr204/Masters/master/disturbance.csv" 
 url6 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Step_Length.txt"
 url7 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Home_Range.txt"
-url8 <- "https://raw.githubusercontent.com/bgr204/Masters/master/disturbance_no_nas.csv"
-url9 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Distance_to_Road.txt"
-url10 <- "https://raw.githubusercontent.com/bgr204/Masters/master/MSc%20projects/Tides/tide%20tables%2021-22.csv"
-url11 <- "https://raw.githubusercontent.com/bgr204/Masters/master/MSc%20projects/Tides/tide%20tables%2022-23.csv"
+url8 <- "https://raw.githubusercontent.com/bgr204/Masters/master/Distance_to_Road.txt"
+url9 <- "https://raw.githubusercontent.com/bgr204/Masters/master/MSc%20projects/Tides/tide%20tables%2021-22.csv"
+url10 <- "https://raw.githubusercontent.com/bgr204/Masters/master/MSc%20projects/Tides/tide%20tables%2022-23.csv"
 
 ###read url into csv
 disturbance <- read.csv(url(url5), sep = ",")
-disturbance2 <- read.csv(url(url8), sep = ",")
 step_length <- read.csv(url(url6), sep = "\t")
 home_range <- read.csv(url(url7), sep = "\t")
-road_distance <- read.csv(url(url9), sep = "\t")
-tide22 <- read.csv(url(url10), sep = ",")
-tide23 <- read.csv(url(url11), sep = ",")
+road_distance <- read.csv(url(url8), sep = "\t")
+tide22 <- read.csv(url(url9), sep = ",")
+tide23 <- read.csv(url(url10), sep = ",")
 
 
 #-------------------------Library-----------------------------------------------
@@ -85,7 +86,7 @@ step_rk <- step_length %>%
 
 ###check normality
 hist(step_rk$distance) # looks bimodal
-shapiro.test(step_oyc$distance) # definitely not normal
+shapiro.test(step_rk$distance) # definitely not normal
 qqnorm(step_rk$distance)
 qqline(step_rk$distance) #not normal
 #fuck it, its normal because I don't know how to work with bimodal data
@@ -533,7 +534,11 @@ ggplot(data = disturbance, aes(x = human_rate, y = alarm))+
   geom_point() +
   geom_smooth(method = "lm")
 
+###timer
+end.time <- Sys.time()
+print(round(end.time-start.time,2))
 
+beepr::beep(0.5, 1)
 
 
 
