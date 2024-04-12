@@ -53,6 +53,7 @@ library(forecast)
 library(moments)
 library(car)
 library(suncalc)
+library(dplyr)
 
 #-------------------------Formatting--------------------------------------------
 
@@ -265,7 +266,8 @@ home_range$area <- home_range$area/1000000
 #histogram of area
 hist(home_range$area, breaks = 30)
 #optimal lambda transformation
-home_range$tf_area <- lambda_transform(home_range$area+1)
+home_range$tf_area <-log(home_range$area)
+  lambda_transform(home_range$area)
 #optimal lambda value
 optimal_lambda(home_range$area)
 #histogram of transformed data
@@ -346,7 +348,7 @@ jarque.test(road_distance$tf_distance)
 
 ###non parametric mixed effects model
 #with interaction
-road_m1 <- lmer(data = road_distance, tf_distance~time+species+road_group+daylight+species:time+species:daylight+(1|device_id))
+road_m1 <- glmer(data = road_distance, tf_distance~time+species+road_group+daylight+species:time+species:daylight+(1|device_id), family = "poisson")
 #non parametric type III anova
 Anova(road_m1, type = "III", test = "Chisq")
 #summary
