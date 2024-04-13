@@ -62,7 +62,18 @@ summary(home_range_m2)
 
 ###predicted values
 home_range$predicted <- predict(home_range_m1, newdata = home_range)
-###create plot
+###create plot with raw data
+ggplot(home_range, aes(x = is_weekend, y = area, colour = species)) +
+  geom_boxplot(outlier.shape = NA) +  # Add actual data points
+  stat_summary(fun = median, aes(group = species, color = species), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75)) +  # Add median points
+  stat_summary(fun = median, aes(group = species, color = species), 
+               geom = "line", linetype = "dashed", size = 0.75, 
+               position = position_dodge(width = 0.75)) +  # Add lines
+  labs(title = "Daily Distance", x = "Weekend", y = "Daily Distance (km)")+
+  ylim(0,5)
+###with predicted values
 ggplot(home_range, aes(x = is_weekend, y = predicted, colour = species)) +
   geom_boxplot() +  # Add actual data points
   stat_summary(fun = median, aes(group = species, color = species), 
@@ -71,7 +82,7 @@ ggplot(home_range, aes(x = is_weekend, y = predicted, colour = species)) +
   stat_summary(fun = median, aes(group = species, color = species), 
                geom = "line", linetype = "dashed", size = 0.75, 
                position = position_dodge(width = 0.75)) +  # Add lines
-  labs(title = "Daily Distance", x = "Weekend", y = "Daily Distance (km)")
+  labs(title = "Daily Distance", x = "Weekend", y = "Daily Distance (Predicted values)")
 
 
 #-------------------------Home Range Model: RK----------------------------------
