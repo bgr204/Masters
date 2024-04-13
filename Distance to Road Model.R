@@ -80,18 +80,12 @@ ggplot(road_distance, aes(x = is_weekend, y = predicted, colour = species)) +
   stat_summary(fun = median, aes(group = species, color = species), 
                geom = "line", linetype = "dashed", size = 0.75, 
                position = position_dodge(width = 0.75)) +  # Add lines
-  labs(title = "Daily Distance", x = "Weekend", y = "Daily Distance (km)")
+  labs(title = "Weekend", x = "Weekend", y = "Distance to Road (predicted)")
 
 ###create plot - road group effect
 ggplot(road_distance, aes(x = road_group, y = predicted, colour = species)) +
   geom_boxplot() +  # Add actual data points
-  stat_summary(fun = median, aes(group = species, color = species), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75)) +  # Add median points
-  stat_summary(fun = median, aes(group = species, color = species), 
-               geom = "line", linetype = "dashed", size = 0.75, 
-               position = position_dodge(width = 0.75)) +  # Add lines
-  labs(title = "Daily Distance", x = "Road Group", y = "Daily Distance (km)")
+  labs(title = "Road Group", x = "Road Group", y = "Distance to Road (predicted)")
 
 ###create plot - traffic effect
 ggplot(road_distance, aes(x = traffic, y = predicted, colour = species)) +
@@ -102,7 +96,7 @@ ggplot(road_distance, aes(x = traffic, y = predicted, colour = species)) +
   stat_summary(fun = median, aes(group = species, color = species), 
                geom = "line", linetype = "dashed", size = 0.75, 
                position = position_dodge(width = 0.75)) +  # Add lines
-  labs(title = "Daily Distance", x = "Traffic", y = "Daily Distance (km)")
+  labs(title = "Traffic", x = "Traffic", y = "Distance to Road (predicted)")
 
 
 #-------------------------Distance to Road: RK----------------------------------
