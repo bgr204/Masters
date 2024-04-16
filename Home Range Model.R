@@ -46,10 +46,8 @@ home_range$area <- home_range$area/1000000
 
 
 ###check normality
-hist(home_range$area) # looks highly right-skewed
-jarque.test(home_range$area) # definitely not normal
-qqnorm(home_range$area)
-qqline(home_range$area) #not normal
+hist_home <- hist(home_range$area) # looks highly right-skewed
+
 
 ###mixed effects model
 home_range_m1 <- glmer(data = home_range, area~is_weekend*species+(1|id), 
@@ -61,18 +59,21 @@ anova(home_range_m2,home_range_m3)
 summary(home_range_m2)
 
 ###predicted values
-home_range$predicted <- predict(home_range_m1, newdata = home_range)
+home_range$predicted <- predict(home_range_m2, newdata = home_range)
+
+###back transform
+home_range$predicted <- exp(home_range$predicted)
+
 ###create plot with raw data
-ggplot(home_range, aes(x = is_weekend, y = area, colour = species)) +
-  geom_boxplot(outlier.shape = NA) +  # Add actual data points
+ggplot(home_range, aes(x = is_weekend, y = predicted, colour = species)) +
+  geom_boxplot() +  # Add actual data points
   stat_summary(fun = median, aes(group = species, color = species), 
                geom = "point", shape = 18, size = 3, 
                position = position_dodge(width = 0.75)) +  # Add median points
   stat_summary(fun = median, aes(group = species, color = species), 
                geom = "line", linetype = "dashed", size = 0.75, 
                position = position_dodge(width = 0.75)) +  # Add lines
-  labs(title = "Daily Distance", x = "Weekend", y = "Daily Distance (km)")+
-  ylim(0,5)
+  labs(x = "Weekend", y = bquote('Utilisation Distribution  '(km^2)))
 ###with predicted values
 ggplot(home_range, aes(x = is_weekend, y = predicted, colour = species)) +
   geom_boxplot() +  # Add actual data points
@@ -178,6 +179,4 @@ summary(home_cu_m1)
 end.time <- Sys.time()
 print(round(end.time-start.time,2))
 
-###alarm
-beepr::beep(0.5, 1)
 

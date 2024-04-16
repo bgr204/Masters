@@ -45,11 +45,7 @@ step_length$is_weekend <- as.factor(step_length$is_weekend)
 
 
 ###check normality
-hist(step_length$distance) # looks bimodal
-jarque.test(step_length$distance) # definitely not normal
-qqnorm(step_length$distance)
-qqline(step_length$distance) #not normal
-#fuck it, its normal because I don't know how to work with bimodal data
+hist(step_length$distance) # looks fine, check residuals after
 
 ###mixed effects model
 step_length_m1 <- lmer(data = step_length, distance~is_weekend*species+(1|id))
@@ -99,6 +95,20 @@ step_rk_m3 <- gamm(data = step_rk, distance~is_weekend+s(id, bs = 're'))
 step_rk_m4 <- gamm(data = step_rk, distance~s(id, bs = 're'))
 anova(step_rk_m3$gam,step_rk_m4$gam)
 summary(step_rk_m3$gam)
+
+###predict
+step_rk$predicted <- predict(step_rk_m1, newdata = step_rk)
+
+###plot
+ggplot(step_rk, aes(x = is_weekend, y = predicted)) +
+  geom_boxplot() +  # Add actual data points
+  stat_summary(fun = median, aes(group = species), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75)) +  # Add median points
+  stat_summary(fun = median, aes(group = species), 
+               geom = "line", linetype = "dashed", size = 1.2, colour = "red", 
+               position = position_dodge(width = 0.75)) +  # Add lines
+  labs(x = "Weekend", y = "Daily Distance (km)")
 
 
 #-------------------------Step Length Model: OYC--------------------------------
@@ -171,5 +181,3 @@ summary(step_cu_m1)
 end.time <- Sys.time()
 print(round(end.time-start.time,2))
 
-###alarm
-beepr::beep(0.5, 1)
