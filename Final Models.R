@@ -45,14 +45,10 @@ library(forestmodel)
 
 
 ###formatting
-disturbance$vigilance <- log(ifelse(disturbance$vigilance == 0, 0, 
-                                    disturbance$vigilance/disturbance$hours))
-disturbance$walkrun <- ifelse(disturbance$walkrun == 0, 0, 
-                              disturbance$walkrun/disturbance$hours)
-disturbance$alarm <- ifelse(disturbance$alarm == 0, 0, 
-                            disturbance$alarm/disturbance$hours)
-disturbance$flight <- ifelse(disturbance$flight == 0, 0, 
-                             disturbance$flight/disturbance$hours)
+disturbance$vigilance <- as.numeric(disturbance$vigilance)
+disturbance$walkrun <- as.numeric(disturbance$walkrun)
+disturbance$flight <- as.numeric(disturbance$flight)
+disturbance$alarm <- as.numeric(disturbance$alarm)
 disturbance$human_rate <- as.numeric(disturbance$human_rate)
 disturbance$start_time <- chron(times=disturbance$start_time)
 disturbance$location_code <- as.factor(disturbance$location_code)
@@ -168,15 +164,19 @@ anova(step_length_m1,step_length_m2)
 anova(step_length_m2,step_length_m3)
 summary(step_length_m2)
 
+###check normality in residuals
+plot(resid(step_length_m2))
+
 ###predicted values
 step_length$predicted <- predict(step_length_m2, newdata = step_length)
 ###create plot
-ggplot(step_length, aes(x = species, y = predicted, colour = is_weekend)) +
+step_plot <- ggplot(step_length, aes(x = species, y = predicted, colour = is_weekend)) +
   geom_boxplot() +
   stat_summary(fun = median, aes(group = is_weekend), 
                geom = "point", shape = 18, size = 3, 
                position = position_dodge(width = 0.75))+
-  labs(x = "Species", y = "Daily Distance (km)", colour = "Weekend")
+  labs(x = "Species", y = "Daily Distance Traveled (km)", colour = "Time of Week")+
+  scale_colour_discrete(labels = c("Weekday", "Weekend"))
 
 
 #-------------------------Formatting: Home Range--------------------------------
@@ -205,6 +205,9 @@ anova(home_range_m1,home_range_m2)
 anova(home_range_m2,home_range_m3)
 summary(home_range_m2)
 
+###check normality in residuals
+plot(resid(home_range_m2))
+
 ###predicted values
 home_range$predicted <- predict(home_range_m2, newdata = home_range)
 
@@ -217,7 +220,277 @@ ggplot(home_range, aes(x = species, y = predicted, colour = is_weekend)) +
   stat_summary(fun = median, aes(group = is_weekend), 
                geom = "point", shape = 18, size = 3, 
                position = position_dodge(width = 0.75)) +
-  labs(x = "Species", y = bquote('Utilisation Distribution  '(km^2)), colour = "Weekend")
+  labs(x = "Species", y = bquote('Daily Utilisation Distribution  '(km^2)), 
+       colour = "Time of Week")+
+  scale_colour_discrete(labels = c("Weekday", "Weekend"))
+
+
+#-------------------------Formatting: Distance to Road--------------------------
+
+
+###formatting
+road_distance$species <- as.factor(road_distance$species)
+road_distance$device_id <- as.factor(road_distance$device_id)
+road_distance$is_weekend <- as.factor(road_distance$is_weekend)
+road_distance$daylight <- factor(road_distance$daylight, 
+                                 levels = c("TRUE","FALSE"))
+road_distance$time <- as.POSIXct(road_distance$UTC_datetime, 
+                                 format = "%Y-%m-%d %H:%M:%S")
+road_distance$time <- format(road_distance$time, format = "%H")
+road_distance$traffic <- as.factor(ifelse(road_distance$time %in% 
+                                    c(7,8,9,15,16,17,18,19), "peak", "offpeak"))
+road_distance$road_group <- ifelse(road_distance$road_group == "motorway", 
+                                   "major_road",road_distance$road_group)
+road_distance$road_group <- factor(road_distance$road_group, 
+                                   levels = c("footpath","minor_road",
+                                              "major_road"))
+
+
+
+#-------------------------Distance to Road Model: RK----------------------------
+
+
+###filter for RK
+road_rk <- road_distance %>%
+  filter(species == "RK")
+
+###check normality
+hist_rk <- hist(road_rk$distance)
+
+###mixed effects model
+road_rk_m1 <- lmer(data = road_rk, distance~is_weekend+road_group+traffic
+                   +daylight+road_group:is_weekend+road_group:traffic
+                   +road_group:daylight+(1|device_id), 
+                   na.action = "na.fail")
+
+###dredge global model
+dd_rk <- dredge(road_rk_m1)
+
+###extract best model
+road_rk_best <- get.models(dd_rk, 1)[[1]]
+
+###check normality in residuals
+plot(resid(road_rk_best))
+
+###plot confidence intervals
+plot_model(road_rk_best, vline.color = "black", 
+           order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
+           value.offset = .3, axis.labels = c("Weekend x Major Road",
+           "Weekend x Minor Road","Peak Traffic x Major Road",
+           "Peak Traffic x Minor Road","Daytime x Major Road",
+           "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
+           "Minor Road","Major Road"), title = "")
+
+###plotting effect of Road Type and Daytime
+#predicted values
+road_rk$predicted <- predict(road_rk_best, newdata = road_rk)
+###create plot
+rk_plot_1 <- ggplot(road_rk, aes(x = road_group, y = predicted, colour = daylight)) +
+  geom_boxplot() +
+  stat_summary(fun = median, aes(group = daylight), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75))+
+  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Day")+
+  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
+  scale_colour_discrete(labels = c("Day", "Night"))
+
+###plotting effect of traffic
+ggplot(road_rk, aes(x = traffic, y = predicted, colour = traffic)) +
+  geom_boxplot() +
+  stat_summary(fun = median, aes(group = traffic), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75))+
+  labs(x = "Traffic", y = "Distance to Road (m)")+
+  scale_x_discrete(labels = c("Off-Peak","Peak"))+
+  theme(legend.position = "none")+
+  theme(text = element_text(size = 12))
+
+
+#-------------------------Distance to Road: OYC---------------------------------
+
+
+###filter for OYC
+road_oyc <- road_distance %>%
+  filter(species == "OYC")
+
+###check normality
+hist_oyc <- hist(road_oyc$distance)
+
+###mixed effects model
+road_oyc_m1 <- lmer(data = road_oyc, distance~is_weekend+road_group+traffic
+                    +daylight+road_group:is_weekend+road_group:traffic
+                    +road_group:daylight+(1|device_id), 
+                    na.action = "na.fail")
+
+###dredge global model
+dd_oyc <- dredge(road_oyc_m1)
+
+###extract best model
+road_oyc_best <- get.models(dd_oyc, 1)[[1]]
+
+###check normality in residuals
+plot(resid(road_oyc_best))
+
+###plot confidence intervals
+plot_model(road_oyc_best, vline.color = "black", 
+           order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
+           value.offset = .3, axis.labels = c("Weekend x Major Road",
+           "Weekend x Minor Road","Peak Traffic x Major Road",
+           "Peak Traffic x Minor Road","Daytime x Major Road",
+           "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
+           "Minor Road","Major Road"), title = "")
+
+###plotting effect of Road Type and Daytime
+#predicted values
+road_oyc$predicted <- predict(road_oyc_best, newdata = road_oyc)
+###create plot
+ggplot(road_oyc, aes(x = road_group, y = predicted, colour = daylight)) +
+  geom_boxplot() +
+  stat_summary(fun = median, aes(group = daylight), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75))+
+  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Day")+
+  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
+  scale_colour_discrete(labels = c("Day", "Night"))
+
+###plotting effect of weekend
+ggplot(road_oyc, aes(x = is_weekend, y = predicted, colour = is_weekend)) +
+  geom_boxplot() +
+  stat_summary(fun = median, aes(group = is_weekend), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75))+
+  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Week")+
+  scale_x_discrete(labels = c("Weekday","Weekend"))+
+  theme(legend.position = "none")
+
+
+
+#-------------------------Distance to Road: GOD---------------------------------
+
+
+###filter for GOD
+road_god <- road_distance %>%
+  filter(species == "GOD")
+
+###check normality
+hist_god <- hist(road_god$distance)
+
+###mixed effects model
+road_god_m1 <- lmer(data = road_god, distance~is_weekend+road_group+traffic
+                    +daylight+road_group:is_weekend+road_group:traffic
+                    +road_group:daylight+(1|device_id), 
+                    na.action = "na.fail")
+
+###dredge global model
+dd_god <- dredge(road_god_m1)
+
+###extract best model
+road_god_best <- get.models(dd_god, 1)[[1]]
+
+###check normality in residuals
+plot(resid(road_god_best))
+
+###plot confidence intervals
+plot_model(road_god_best, vline.color = "black", 
+           order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
+           value.offset = .3, axis.labels = c("Weekend x Major Road",
+           "Weekend x Minor Road","Peak Traffic x Major Road",
+           "Peak Traffic x Minor Road","Daytime x Major Road",
+           "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
+           "Minor Road","Major Road"), title = "")
+
+###plotting effect of Road Type and Traffic
+#predicted values
+road_god$predicted <- predict(road_god_best, newdata = road_god)
+###create plot
+ggplot(road_god, aes(x = road_group, y = predicted, colour = traffic)) +
+  geom_boxplot() +
+  stat_summary(fun = median, aes(group = traffic), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75))+
+  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Traffic")+
+  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
+  scale_colour_discrete(labels = c("Off-Peak", "Peak"))
+
+###plotting effect of Road Type and Daytime
+ggplot(road_god, aes(x = road_group, y = predicted, colour = daylight)) +
+  geom_boxplot() +
+  stat_summary(fun = median, aes(group = daylight), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75))+
+  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Day")+
+  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
+  scale_colour_discrete(labels = c("Day", "Night"))
+
+
+
+#-------------------------Distance to Road: CU----------------------------------
+
+
+###filter for CU
+road_cu <- road_distance %>%
+  filter(species == "CU")
+
+###check normality
+hist_cu <- hist(road_cu$distance)
+
+###mixed effects model
+road_cu_m1 <- lmer(data = road_cu, distance~is_weekend+road_group+traffic
+                   +daylight+road_group:is_weekend+road_group:traffic
+                   +road_group:daylight+(1|device_id), 
+                   na.action = "na.fail")
+
+
+###dredge global model
+dd_cu <- dredge(road_cu_m1)
+
+###extract best model
+road_cu_best <- get.models(dd_cu, 1)[[1]]
+
+###check normality in residuals
+plot(resid(road_cu_best))
+
+###plot confidence intervals
+plot_model(road_cu_best, vline.color = "black", 
+           order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
+           value.offset = .3, axis.labels = c("Weekend x Major Road",
+           "Weekend x Minor Road","Peak Traffic x Major Road",
+           "Peak Traffic x Minor Road","Daytime x Major Road",
+           "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
+           "Minor Road","Major Road"), title = "")
+
+###plotting effect of Road Type and Traffic
+#predicted values
+road_cu$predicted <- predict(road_cu_best, newdata = road_cu)
+###create plot
+ggplot(road_cu, aes(x = road_group, y = predicted, colour = traffic)) +
+  geom_boxplot() +
+  stat_summary(fun = median, aes(group = traffic), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75))+
+  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Traffic")+
+  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
+  scale_colour_discrete(labels = c("Off-Peak", "Peak"))
+
+###plotting effect of Road Type and Daytime
+ggplot(road_cu, aes(x = road_group, y = predicted, colour = daylight)) +
+  geom_boxplot() +
+  stat_summary(fun = median, aes(group = daylight), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75))+
+  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Day")+
+  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
+  scale_colour_discrete(labels = c("Day", "Night"))
+
+###plotting effect of Road Type and Weekend
+ggplot(road_cu, aes(x = road_group, y = predicted, colour = is_weekend)) +
+  geom_boxplot() +
+  stat_summary(fun = median, aes(group = is_weekend), 
+               geom = "point", shape = 18, size = 3, 
+               position = position_dodge(width = 0.75))+
+  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Week")+
+  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
+  scale_colour_discrete(labels = c("Weekday", "Weekend"))
 
 
 #-------------------------Timer-------------------------------------------------
@@ -226,3 +499,23 @@ ggplot(home_range, aes(x = species, y = predicted, colour = is_weekend)) +
 ###timer
 end.time <- Sys.time()
 print(round(end.time-start.time,2))
+
+
+#-------------------------Exporting Plots---------------------------------------
+
+
+# Save the plot with specified parameters
+ggsave("rk_plot_1.png", plot = rk_plot_1,
+       width = 18, height = 14,  # Legal paper size in inches
+       units = "cm", dpi = 300,  # Resolution
+       device = "png",
+       scale = 1,  # Scale factor for font size
+       limitsize = FALSE)
+
+ggsave("rk_plot_1.png", plot = rk_plot_1,
+       width = 18, height = 14,  # Legal paper size in inches
+       units = "cm", dpi = 300,  # Resolution
+       device = "png",
+       scale = 1,  # Scale factor for font size
+       limitsize = FALSE)
+
