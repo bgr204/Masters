@@ -39,6 +39,7 @@ library(suncalc)
 library(dplyr)
 library(gamm4)
 library(forestmodel)
+library(parameters)
 
 
 #-------------------------Formatting: Disturbance-------------------------------
@@ -167,14 +168,31 @@ summary(step_length_m2)
 ###check normality in residuals
 plot(resid(step_length_m2))
 
-###predicted values
-step_length$predicted <- predict(step_length_m2, newdata = step_length)
-###create plot
-step_plot <- ggplot(step_length, aes(x = species, y = predicted, colour = is_weekend)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = is_weekend), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
+# Extract parameters
+param_step <- parameters(step_length_m2)
+
+# Create data frame for estimates and confidence intervals
+estim_step <- tibble(
+  estimate = c(param_step$Coefficient[1], param_step$Coefficient[3:5] + param_step$Coefficient[1], 
+               param_step$Coefficient[1]+ param_step$Coefficient[2], param_step$Coefficient[3:5] + param_step$Coefficient[1] + param_step$Coefficient[2]),
+  ci_low = c(param_step$CI_low[1], param_step$CI_low[3:5] + param_step$CI_low[1],
+             param_step$CI_low[1]+ param_step$CI_low[2], param_step$CI_low[3:5] + param_step$CI_low[1] + param_step$CI_low[2]),
+  ci_high = c(param_step$CI_high[1], param_step$CI_high[3:5] + param_step$CI_high[1],
+              param_step$CI_high[1] + param_step$CI_high[2], param_step$CI_high[3:5] + param_step$CI_high[1] + param_step$CI_high[2]),
+  week = rep(c("weekday", "weekend"), each = 4),
+  species = rep(c("CU", "GOD", "OYC", "RK"), 2)
+)
+
+# Convert ci_low and ci_high to numeric
+estim_step <- estim_step %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+
+###plot
+step_plot <- ggplot(data = estim_step, aes(x = species, y = estimate, colour = week))+
+  geom_pointrange(data = estim_step, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
   labs(x = "Species", y = "Daily Distance Traveled (km)", colour = "Time of Week")+
   scale_colour_discrete(labels = c("Weekday", "Weekend"))
 
@@ -208,18 +226,31 @@ summary(home_range_m2)
 ###check normality in residuals
 plot(resid(home_range_m2))
 
-###predicted values
-home_range$predicted <- predict(home_range_m2, newdata = home_range)
+# Extract parameters
+param_home <- parameters(home_range_m2)
 
-###back transform
-home_range$predicted <- exp(home_range$predicted)
+# Create data frame for estimates and confidence intervals
+estim_home <- tibble(
+  estimate = exp(c(param_home$Coefficient[1], param_home$Coefficient[3:5] + param_home$Coefficient[1], 
+               param_home$Coefficient[1] + param_home$Coefficient[2], param_home$Coefficient[3:5] + param_home$Coefficient[1] + param_home$Coefficient[2])),
+  ci_low = exp(c(param_home$CI_low[1], param_home$CI_low[3:5] + param_home$CI_low[1],
+             param_home$CI_low[1] + param_home$CI_low[2], param_home$CI_low[3:5] + param_home$CI_low[1] + param_home$CI_low[2])),
+  ci_high = exp(c(param_home$CI_high[1], param_home$CI_high[3:5] + param_home$CI_high[1],
+              param_home$CI_high[1] + param_home$CI_high[2], param_home$CI_high[3:5] + param_home$CI_high[1] + param_home$CI_high[2])),
+  week = rep(c("weekday", "weekend"), each = 4),
+  species = rep(c("CU", "GOD", "OYC", "RK"), 2)
+)
 
-###create plot with raw data
-ggplot(home_range, aes(x = species, y = predicted, colour = is_weekend)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = is_weekend), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75)) +
+# Convert ci_low and ci_high to numeric
+estim_home <- estim_home %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+
+###plot
+home_plot <- ggplot(data = estim_home, aes(x = species, y = estimate, colour = week))+
+  geom_pointrange(data = estim_home, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
   labs(x = "Species", y = bquote('Daily Utilisation Distribution  '(km^2)), 
        colour = "Time of Week")+
   scale_colour_discrete(labels = c("Weekday", "Weekend"))
@@ -247,7 +278,7 @@ road_distance$road_group <- factor(road_distance$road_group,
 
 
 
-#-------------------------Distance to Road Model: RK----------------------------
+#-------------------------Distance to Road: RK----------------------------
 
 
 ###filter for RK
@@ -273,7 +304,7 @@ road_rk_best <- get.models(dd_rk, 1)[[1]]
 plot(resid(road_rk_best))
 
 ###plot confidence intervals
-plot_model(road_rk_best, vline.color = "black", 
+rk_plot_model <- plot_model(road_rk_best, vline.color = "black", 
            order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
            value.offset = .3, axis.labels = c("Weekend x Major Road",
            "Weekend x Minor Road","Peak Traffic x Major Road",
@@ -281,29 +312,53 @@ plot_model(road_rk_best, vline.color = "black",
            "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
            "Minor Road","Major Road"), title = "")
 
-###plotting effect of Road Type and Daytime
-#predicted values
-road_rk$predicted <- predict(road_rk_best, newdata = road_rk)
-###create plot
-rk_plot_1 <- ggplot(road_rk, aes(x = road_group, y = predicted, colour = daylight)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = daylight), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
-  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Day")+
-  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
-  scale_colour_discrete(labels = c("Day", "Night"))
+# Extract parameters
+param_road_rk1 <- parameters(road_rk_best)
 
-###plotting effect of traffic
-ggplot(road_rk, aes(x = traffic, y = predicted, colour = traffic)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = traffic), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
+# Create data frame for estimates and confidence intervals
+estim_road_rk1 <- tibble(
+  estimate = c(param_road_rk1$Coefficient[1], param_road_rk1$Coefficient[1] + param_road_rk1$Coefficient[4:5], param_road_rk1$Coefficient[1] + param_road_rk1$Coefficient[2], param_road_rk1$Coefficient[1] + param_road_rk1$Coefficient[2] + param_road_rk1$Coefficient[4]+ param_road_rk1$Coefficient[7], param_road_rk1$Coefficient[1] + param_road_rk1$Coefficient[2] + param_road_rk1$Coefficient[5]+ param_road_rk1$Coefficient[8]),
+  ci_low = c(param_road_rk1$CI_low[1], param_road_rk1$CI_low[1] + param_road_rk1$CI_low[4:5], param_road_rk1$CI_low[1] + param_road_rk1$CI_low[2], param_road_rk1$CI_low[1] + param_road_rk1$CI_low[2] + param_road_rk1$CI_low[4]+ param_road_rk1$CI_low[7], param_road_rk1$CI_low[1] + param_road_rk1$CI_low[2] + param_road_rk1$CI_low[5]+ param_road_rk1$CI_low[8]),
+  ci_high = c(param_road_rk1$CI_high[1], param_road_rk1$CI_high[1] + param_road_rk1$CI_high[4:5], param_road_rk1$CI_high[1] + param_road_rk1$CI_high[2], param_road_rk1$CI_high[1] + param_road_rk1$CI_high[2] + param_road_rk1$CI_high[4]+ param_road_rk1$CI_high[7], param_road_rk1$CI_high[1] + param_road_rk1$CI_high[2] + param_road_rk1$CI_high[5]+ param_road_rk1$CI_high[8]),
+  daytime = rep(c("Day", "Night"), each = 3),
+  road = factor(rep(c("footpath", "minor_road", "major_road"), 2), levels = c("footpath","minor_road","major_road"))
+)
+
+# Convert ci_low and ci_high to numeric
+estim_road_rk1 <- estim_road_rk1 %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+###plot
+rk_plot_day <- ggplot(data = estim_road_rk1, aes(x = road, y = estimate, colour = daytime))+
+  geom_pointrange(data = estim_road_rk1, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
+  labs(x = "Road Group", y = "Distance to Road (m)", 
+       colour = "Time of Day")+
+  scale_x_discrete(labels = c("Footpath", "Minor Road", "Major Road"))+
+  scale_colour_manual(values = c("orange", "#708090"))
+
+# Create data frame for estimates and confidence intervals
+estim_road_rk2 <- tibble(
+  estimate = c(param_road_rk1$Coefficient[1], param_road_rk1$Coefficient[1] + param_road_rk1$Coefficient[6]),
+  ci_low = c(param_road_rk1$CI_low[1], param_road_rk1$CI_low[1] + param_road_rk1$CI_low[6]),
+  ci_high = c(param_road_rk1$CI_high[1], param_road_rk1$CI_high[1] + param_road_rk1$CI_high[6]),
+  traffic = c("offpeak", "peak"),
+)
+
+# Convert ci_low and ci_high to numeric
+estim_road_rk2 <- estim_road_rk2 %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+###plot
+rk_plot_traf <- ggplot(data = estim_road_rk2, aes(x = traffic, y = estimate, colour = traffic))+
+  geom_pointrange(data = estim_road_rk2, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
   labs(x = "Traffic", y = "Distance to Road (m)")+
-  scale_x_discrete(labels = c("Off-Peak","Peak"))+
+  scale_x_discrete(labels = c("Off-Peak", "Peak"))+
   theme(legend.position = "none")+
-  theme(text = element_text(size = 12))
+  scale_colour_manual(values = c("chartreuse3",  "purple"))
 
 
 #-------------------------Distance to Road: OYC---------------------------------
@@ -332,7 +387,7 @@ road_oyc_best <- get.models(dd_oyc, 1)[[1]]
 plot(resid(road_oyc_best))
 
 ###plot confidence intervals
-plot_model(road_oyc_best, vline.color = "black", 
+oyc_plot_model <- plot_model(road_oyc_best, vline.color = "black", 
            order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
            value.offset = .3, axis.labels = c("Weekend x Major Road",
            "Weekend x Minor Road","Peak Traffic x Major Road",
@@ -340,29 +395,52 @@ plot_model(road_oyc_best, vline.color = "black",
            "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
            "Minor Road","Major Road"), title = "")
 
-###plotting effect of Road Type and Daytime
-#predicted values
-road_oyc$predicted <- predict(road_oyc_best, newdata = road_oyc)
-###create plot
-ggplot(road_oyc, aes(x = road_group, y = predicted, colour = daylight)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = daylight), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
-  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Day")+
-  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
-  scale_colour_discrete(labels = c("Day", "Night"))
+# Extract parameters
+param_road_oyc1 <- parameters(road_oyc_best)
 
-###plotting effect of weekend
-ggplot(road_oyc, aes(x = is_weekend, y = predicted, colour = is_weekend)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = is_weekend), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
-  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Week")+
-  scale_x_discrete(labels = c("Weekday","Weekend"))+
+# Create data frame for estimates and confidence intervals
+estim_road_oyc1 <- tibble(
+  estimate = c(param_road_oyc1$Coefficient[1], param_road_oyc1$Coefficient[1] + param_road_oyc1$Coefficient[4:5], param_road_oyc1$Coefficient[1] + param_road_oyc1$Coefficient[2], param_road_oyc1$Coefficient[1] + param_road_oyc1$Coefficient[2] + param_road_oyc1$Coefficient[4]+ param_road_oyc1$Coefficient[7], param_road_oyc1$Coefficient[1] + param_road_oyc1$Coefficient[2] + param_road_oyc1$Coefficient[5]+ param_road_oyc1$Coefficient[8]),
+  ci_low = c(param_road_oyc1$CI_low[1], param_road_oyc1$CI_low[1] + param_road_oyc1$CI_low[4:5], param_road_oyc1$CI_low[1] + param_road_oyc1$CI_low[2], param_road_oyc1$CI_low[1] + param_road_oyc1$CI_low[2] + param_road_oyc1$CI_low[4]+ param_road_oyc1$CI_low[7], param_road_oyc1$CI_low[1] + param_road_oyc1$CI_low[2] + param_road_oyc1$CI_low[5]+ param_road_oyc1$CI_low[8]),
+  ci_high = c(param_road_oyc1$CI_high[1], param_road_oyc1$CI_high[1] + param_road_oyc1$CI_high[4:5], param_road_oyc1$CI_high[1] + param_road_oyc1$CI_high[2], param_road_oyc1$CI_high[1] + param_road_oyc1$CI_high[2] + param_road_oyc1$CI_high[4]+ param_road_oyc1$CI_high[7], param_road_oyc1$CI_high[1] + param_road_oyc1$CI_high[2] + param_road_oyc1$CI_high[5]+ param_road_oyc1$CI_high[8]),
+  daytime = rep(c("Day", "Night"), each = 3),
+  road = factor(rep(c("footpath", "minor_road", "major_road"), 2), levels = c("footpath","minor_road","major_road"))
+)
+
+# Convert ci_low and ci_high to numeric
+estim_road_oyc1 <- estim_road_oyc1 %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+###plot
+oyc_plot_day <- ggplot(data = estim_road_oyc1, aes(x = road, y = estimate, colour = daytime))+
+  geom_pointrange(data = estim_road_oyc1, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
+  labs(x = "Road Group", y = "Distance to Road (m)", 
+       colour = "Time of Day")+
+  scale_x_discrete(labels = c("Footpath", "Minor Road", "Major Road"))+
+  scale_colour_manual(values = c("orange", "#708090"))
+
+# Create data frame for estimates and confidence intervals
+estim_road_oyc2 <- tibble(
+  estimate = c(param_road_oyc1$Coefficient[1], param_road_oyc1$Coefficient[1] + param_road_oyc1$Coefficient[3]),
+  ci_low = c(param_road_oyc1$CI_low[1], param_road_oyc1$CI_low[1] + param_road_oyc1$CI_low[3]),
+  ci_high = c(param_road_oyc1$CI_high[1], param_road_oyc1$CI_high[1] + param_road_oyc1$CI_high[3]),
+  weekend = c("weekday", "weekend"),
+)
+
+# Convert ci_low and ci_high to numeric
+estim_road_oyc2 <- estim_road_oyc2 %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+###plot
+oyc_plot_week <- ggplot(data = estim_road_oyc2, aes(x = weekend, y = estimate, colour = weekend))+
+  geom_pointrange(data = estim_road_oyc2, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
+  labs(x = "Time of Week", y = "Distance to Road (m)")+
+  scale_x_discrete(labels = c("Weekday", "Weekend"))+
   theme(legend.position = "none")
-
 
 
 #-------------------------Distance to Road: GOD---------------------------------
@@ -391,7 +469,7 @@ road_god_best <- get.models(dd_god, 1)[[1]]
 plot(resid(road_god_best))
 
 ###plot confidence intervals
-plot_model(road_god_best, vline.color = "black", 
+god_plot_model <- plot_model(road_god_best, vline.color = "black", 
            order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
            value.offset = .3, axis.labels = c("Weekend x Major Road",
            "Weekend x Minor Road","Peak Traffic x Major Road",
@@ -399,29 +477,54 @@ plot_model(road_god_best, vline.color = "black",
            "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
            "Minor Road","Major Road"), title = "")
 
-###plotting effect of Road Type and Traffic
-#predicted values
-road_god$predicted <- predict(road_god_best, newdata = road_god)
-###create plot
-ggplot(road_god, aes(x = road_group, y = predicted, colour = traffic)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = traffic), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
-  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Traffic")+
-  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
-  scale_colour_discrete(labels = c("Off-Peak", "Peak"))
+# Extract parameters
+param_road_god1 <- parameters(road_god_best)
 
-###plotting effect of Road Type and Daytime
-ggplot(road_god, aes(x = road_group, y = predicted, colour = daylight)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = daylight), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
-  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Day")+
-  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
-  scale_colour_discrete(labels = c("Day", "Night"))
+# Create data frame for estimates and confidence intervals
+estim_road_god1 <- tibble(
+  estimate = c(param_road_god1$Coefficient[1], param_road_god1$Coefficient[1] + param_road_god1$Coefficient[4:5], param_road_god1$Coefficient[1] + param_road_god1$Coefficient[6], param_road_god1$Coefficient[1] + param_road_god1$Coefficient[6] + param_road_god1$Coefficient[4]+ param_road_god1$Coefficient[11], param_road_god1$Coefficient[1] + param_road_god1$Coefficient[6] + param_road_god1$Coefficient[5]+ param_road_god1$Coefficient[12]),
+  ci_low = c(param_road_god1$CI_low[1], param_road_god1$CI_low[1] + param_road_god1$CI_low[4:5], param_road_god1$CI_low[1] + param_road_god1$CI_low[6], param_road_god1$CI_low[1] + param_road_god1$CI_low[6] + param_road_god1$CI_low[4]+ param_road_god1$CI_low[11], param_road_god1$CI_low[1] + param_road_god1$CI_low[6] + param_road_god1$CI_low[5]+ param_road_god1$CI_low[12]),
+  ci_high = c(param_road_god1$CI_high[1], param_road_god1$CI_high[1] + param_road_god1$CI_high[4:5], param_road_god1$CI_high[1] + param_road_god1$CI_high[6], param_road_god1$CI_high[1] + param_road_god1$CI_high[6] + param_road_god1$CI_high[4]+ param_road_god1$CI_high[11], param_road_god1$CI_high[1] + param_road_god1$CI_high[6] + param_road_god1$CI_high[5]+ param_road_god1$CI_high[12]),
+  traffic = rep(c("Off-peak", "Peak"), each = 3),
+  road = factor(rep(c("footpath", "minor_road", "major_road"), 2), levels = c("footpath","minor_road","major_road"))
+)
 
+# Convert ci_low and ci_high to numeric
+estim_road_god1 <- estim_road_god1 %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+###plot
+god_plot_traf <- ggplot(data = estim_road_god1, aes(x = road, y = estimate, colour = traffic))+
+  geom_pointrange(data = estim_road_god1, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
+  labs(x = "Road Group", y = "Distance to Road (m)", 
+       colour = "Traffic")+
+  scale_x_discrete(labels = c("Footpath", "Minor Road", "Major Road"))+
+  scale_colour_manual(values = c("chartreuse3",  "purple"))
+
+# Create data frame for estimates and confidence intervals
+estim_road_god2 <- tibble(
+  estimate = c(param_road_god1$Coefficient[1], param_road_god1$Coefficient[1] + param_road_god1$Coefficient[4:5], param_road_god1$Coefficient[1] + param_road_god1$Coefficient[2], param_road_god1$Coefficient[1] + param_road_god1$Coefficient[2] + param_road_god1$Coefficient[4]+ param_road_god1$Coefficient[7], param_road_god1$Coefficient[1] + param_road_god1$Coefficient[2] + param_road_god1$Coefficient[5]+ param_road_god1$Coefficient[8]),
+  ci_low = c(param_road_god1$CI_low[1], param_road_god1$CI_low[1] + param_road_god1$CI_low[4:5], param_road_god1$CI_low[1] + param_road_god1$CI_low[2], param_road_god1$CI_low[1] + param_road_god1$CI_low[2] + param_road_god1$CI_low[4]+ param_road_god1$CI_low[7], param_road_god1$CI_low[1] + param_road_god1$CI_low[2] + param_road_god1$CI_low[5]+ param_road_god1$CI_low[8]),
+  ci_high = c(param_road_god1$CI_high[1], param_road_god1$CI_high[1] + param_road_god1$CI_high[4:5], param_road_god1$CI_high[1] + param_road_god1$CI_high[2], param_road_god1$CI_high[1] + param_road_god1$CI_high[2] + param_road_god1$CI_high[4]+ param_road_god1$CI_high[7], param_road_god1$CI_high[1] + param_road_god1$CI_high[2] + param_road_god1$CI_high[5]+ param_road_god1$CI_high[8]),
+  daytime = rep(c("Day", "Night"), each = 3),
+  road = factor(rep(c("footpath", "minor_road", "major_road"), 2), levels = c("footpath","minor_road","major_road"))
+)
+
+# Convert ci_low and ci_high to numeric
+estim_road_god2 <- estim_road_god2 %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+###plot
+god_plot_day <- ggplot(data = estim_road_god2, aes(x = road, y = estimate, colour = daytime))+
+  geom_pointrange(data = estim_road_god2, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
+  labs(x = "Road Group", y = "Distance to Road (m)", 
+       colour = "Time of Day")+
+  scale_x_discrete(labels = c("Footpath", "Minor Road", "Major Road"))+
+  scale_colour_manual(values = c("orange", "#708090"))
 
 
 #-------------------------Distance to Road: CU----------------------------------
@@ -451,7 +554,7 @@ road_cu_best <- get.models(dd_cu, 1)[[1]]
 plot(resid(road_cu_best))
 
 ###plot confidence intervals
-plot_model(road_cu_best, vline.color = "black", 
+cu_plot_model <- plot_model(road_cu_best, vline.color = "black", 
            order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
            value.offset = .3, axis.labels = c("Weekend x Major Road",
            "Weekend x Minor Road","Peak Traffic x Major Road",
@@ -459,38 +562,77 @@ plot_model(road_cu_best, vline.color = "black",
            "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
            "Minor Road","Major Road"), title = "")
 
-###plotting effect of Road Type and Traffic
-#predicted values
-road_cu$predicted <- predict(road_cu_best, newdata = road_cu)
-###create plot
-ggplot(road_cu, aes(x = road_group, y = predicted, colour = traffic)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = traffic), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
-  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Traffic")+
-  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
-  scale_colour_discrete(labels = c("Off-Peak", "Peak"))
+# Extract parameters
+param_road_cu1 <- parameters(road_cu_best)
 
-###plotting effect of Road Type and Daytime
-ggplot(road_cu, aes(x = road_group, y = predicted, colour = daylight)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = daylight), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
-  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Day")+
-  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
-  scale_colour_discrete(labels = c("Day", "Night"))
+# Create data frame for estimates and confidence intervals
+estim_road_cu1 <- tibble(
+  estimate = c(param_road_cu1$Coefficient[1], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[4:5], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[6], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[6] + param_road_cu1$Coefficient[4]+ param_road_cu1$Coefficient[11], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[6] + param_road_cu1$Coefficient[5]+ param_road_cu1$Coefficient[12]),
+  ci_low = c(param_road_cu1$CI_low[1], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[4:5], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[6], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[6] + param_road_cu1$CI_low[4]+ param_road_cu1$CI_low[11], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[6] + param_road_cu1$CI_low[5]+ param_road_cu1$CI_low[12]),
+  ci_high = c(param_road_cu1$CI_high[1], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[4:5], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[6], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[6] + param_road_cu1$CI_high[4]+ param_road_cu1$CI_high[11], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[6] + param_road_cu1$CI_high[5]+ param_road_cu1$CI_high[12]),
+  traffic = rep(c("Off-peak", "Peak"), each = 3),
+  road = factor(rep(c("footpath", "minor_road", "major_road"), 2), levels = c("footpath","minor_road","major_road"))
+)
 
-###plotting effect of Road Type and Weekend
-ggplot(road_cu, aes(x = road_group, y = predicted, colour = is_weekend)) +
-  geom_boxplot() +
-  stat_summary(fun = median, aes(group = is_weekend), 
-               geom = "point", shape = 18, size = 3, 
-               position = position_dodge(width = 0.75))+
-  labs(x = "Road Group", y = "Distance to Road (m)", colour = "Time of Week")+
-  scale_x_discrete(labels = c("Footpath","Minor Road","Major Road"))+
-  scale_colour_discrete(labels = c("Weekday", "Weekend"))
+# Convert ci_low and ci_high to numeric
+estim_road_cu1 <- estim_road_cu1 %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+###plot
+cu_plot_traf <- ggplot(data = estim_road_cu1, aes(x = road, y = estimate, colour = traffic))+
+  geom_pointrange(data = estim_road_cu1, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
+  labs(x = "Road Group", y = "Distance to Road (m)", 
+       colour = "Traffic")+
+  scale_x_discrete(labels = c("Footpath", "Minor Road", "Major Road"))+
+  scale_colour_manual(values = c("chartreuse3",  "purple"))
+
+# Create data frame for estimates and confidence intervals
+estim_road_cu2 <- tibble(
+  estimate = c(param_road_cu1$Coefficient[1], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[4:5], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[2], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[2] + param_road_cu1$Coefficient[4]+ param_road_cu1$Coefficient[7], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[2] + param_road_cu1$Coefficient[5]+ param_road_cu1$Coefficient[8]),
+  ci_low = c(param_road_cu1$CI_low[1], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[4:5], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[2], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[2] + param_road_cu1$CI_low[4]+ param_road_cu1$CI_low[7], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[2] + param_road_cu1$CI_low[5]+ param_road_cu1$CI_low[8]),
+  ci_high = c(param_road_cu1$CI_high[1], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[4:5], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[2], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[2] + param_road_cu1$CI_high[4]+ param_road_cu1$CI_high[7], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[2] + param_road_cu1$CI_high[5]+ param_road_cu1$CI_high[8]),
+  daytime = rep(c("Day", "Night"), each = 3),
+  road = factor(rep(c("footpath", "minor_road", "major_road"), 2), levels = c("footpath","minor_road","major_road"))
+)
+
+# Convert ci_low and ci_high to numeric
+estim_road_cu2 <- estim_road_cu2 %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+###plot
+cu_plot_day <- ggplot(data = estim_road_cu2, aes(x = road, y = estimate, colour = daytime))+
+  geom_pointrange(data = estim_road_cu2, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
+  labs(x = "Road Group", y = "Distance to Road (m)", 
+       colour = "Time of Day")+
+  scale_x_discrete(labels = c("Footpath", "Minor Road", "Major Road"))+
+  scale_colour_manual(values = c("orange", "#708090"))
+
+# Create data frame for estimates and confidence intervals
+estim_road_cu3 <- tibble(
+  estimate = c(param_road_cu1$Coefficient[1], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[4:5], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[3], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[3] + param_road_cu1$Coefficient[4]+ param_road_cu1$Coefficient[9], param_road_cu1$Coefficient[1] + param_road_cu1$Coefficient[3] + param_road_cu1$Coefficient[5]+ param_road_cu1$Coefficient[10]),
+  ci_low = c(param_road_cu1$CI_low[1], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[4:5], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[3], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[3] + param_road_cu1$CI_low[4]+ param_road_cu1$CI_low[9], param_road_cu1$CI_low[1] + param_road_cu1$CI_low[3] + param_road_cu1$CI_low[5]+ param_road_cu1$CI_low[10]),
+  ci_high = c(param_road_cu1$CI_high[1], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[4:5], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[3], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[3] + param_road_cu1$CI_high[4]+ param_road_cu1$CI_high[9], param_road_cu1$CI_high[1] + param_road_cu1$CI_high[3] + param_road_cu1$CI_high[5]+ param_road_cu1$CI_high[10]),
+  weekend = rep(c("weekday", "weekend"), each = 3),
+  road = factor(rep(c("footpath", "minor_road", "major_road"), 2), levels = c("footpath","minor_road","major_road"))
+)
+
+# Convert ci_low and ci_high to numeric
+estim_road_cu3 <- estim_road_cu3 %>%
+  mutate(ci_low = as.numeric(ci_low),
+         ci_high = as.numeric(ci_high))
+
+###plot
+cu_plot_week <- ggplot(data = estim_road_cu3, aes(x = road, y = estimate, colour = weekend))+
+  geom_pointrange(data = estim_road_cu3, aes(ymin = ci_low, ymax = ci_high, ),
+                  position = position_dodge(width = 0.75), linewidth  = 1, size = 1)+
+  labs(x = "Road Group", y = "Distance to Road (m)", 
+       colour = "Time of Week")+
+  scale_colour_discrete(labels = c("Weekday", "Weekend"))+
+  scale_x_discrete(labels = c("Footpath", "Minor Road", "Major Road"))
 
 
 #-------------------------Timer-------------------------------------------------
@@ -504,18 +646,109 @@ print(round(end.time-start.time,2))
 #-------------------------Exporting Plots---------------------------------------
 
 
-# Save the plot with specified parameters
-ggsave("rk_plot_1.png", plot = rk_plot_1,
-       width = 18, height = 14,  # Legal paper size in inches
-       units = "cm", dpi = 300,  # Resolution
+###step length plot
+ggsave("step_plot.png", plot = step_plot,
+       width = 18, height = 12,  
+       units = "cm", dpi = 300, 
        device = "png",
-       scale = 1,  # Scale factor for font size
+       scale = 1, 
        limitsize = FALSE)
 
-ggsave("rk_plot_1.png", plot = rk_plot_1,
-       width = 18, height = 14,  # Legal paper size in inches
-       units = "cm", dpi = 300,  # Resolution
+###home range plot
+ggsave("home_plot.png", plot = home_plot,
+       width = 18, height = 12,  
+       units = "cm", dpi = 300, 
        device = "png",
-       scale = 1,  # Scale factor for font size
+       scale = 1, 
        limitsize = FALSE)
+
+###distance to road plots: RK
+ggsave("rk_plot_model.png", plot = rk_plot_model,
+       width = 18, height = 12,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+ggsave("rk_plot_day.png", plot = rk_plot_day,
+       width = 11, height = 8,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+ggsave("rk_plot_traf.png", plot = rk_plot_traf,
+       width = 5, height = 8,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+
+###distance to road plots: OYC
+ggsave("oyc_plot_model.png", plot = oyc_plot_model,
+       width = 18, height = 12,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+ggsave("oyc_plot_week.png", plot = oyc_plot_week,
+       width = 5, height = 8,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+ggsave("oyc_plot_day.png", plot = oyc_plot_day,
+       width = 11, height = 8,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+
+
+###distance to road plots: GOD
+ggsave("god_plot_model.png", plot = god_plot_model,
+       width = 18, height = 12,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+ggsave("god_plot_day.png", plot = god_plot_day,
+       width = 11, height = 8,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+ggsave("god_plot_traf.png", plot = god_plot_traf,
+       width = 5, height = 8,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+
+###distance to road plots: CU
+ggsave("cu_plot_model.png", plot = cu_plot_model,
+       width = 18, height = 12,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+ggsave("cu_plot_day.png", plot = cu_plot_day,
+       width = 15, height = 8,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+ggsave("cu_plot_traf.png", plot = cu_plot_traf,
+       width = 15, height = 8,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+ggsave("cu_plot_week.png", plot = cu_plot_week,
+       width = 15, height = 8,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
+
+
+
 
