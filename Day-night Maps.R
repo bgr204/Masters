@@ -44,6 +44,9 @@ library(PROJ)
 library(crsmeta)
 library(reproj)
 library(osmdata)
+library(ggspatial)
+library(leaflet)
+library(rnaturalearth)
 
 ###changing format of coordinates
 all2$Longitude <- as.numeric(all2$Longitude)
@@ -56,7 +59,7 @@ all2 <- all2 %>%
 
 ###Convert UTC_datetime to POSIXct
 all2$UTC_datetime <- as.POSIXct(all2$UTC_datetime, 
-                               format = "%Y-%m-%d %H:%M:%S") 
+                                format = "%Y-%m-%d %H:%M:%S") 
 
 ###remove NAs - why are they introduced by the previous code?
 all2 <- all2 %>% 
@@ -106,8 +109,8 @@ species <- c(unique(all2$species))
 
 ####make track
 all_trk2 <- make_track(all_df2, x, y, UTC_datetime, day = day, date = UTC_date, 
-                      id = device_id, species = species,
-                      crs = 4326)
+                       id = device_id, species = species,
+                       crs = 4326)
 
 #-------------------------Distance to roads-------------------------------------
 
@@ -118,57 +121,6 @@ dublin_bb <- matrix(data = c(-6.3, -6, 53.29, 53.55),
 # Update column and row names
 colnames(dublin_bb) <- c("min", "max")
 rownames(dublin_bb) <- c("x", "y")
-
-###create a map of highways using osmdata
-roads1 <- dublin_bb %>%
-  #use this to make coordinates into a map
-  opq() %>%
-  #add highway data
-  add_osm_feature(key = "highway") %>%
-  #make into a simple feature
-  osmdata_sf()
-
-###extract highway lines from map
-roads2 <- roads1$osm_lines
-
-###calculate distance from gps points to nearest highway feature
-#create list of ids (to make calculations smaller)
-device_id <- c(unique(all_sf2$device_id))
-###create an empty data frame
-dtr_results <- data.frame()
-#for loop to run each device id through st_distance function
-for (i in device_id) {
-  #filter for each device id
-  dtr1 <- all_sf2 %>%
-    filter(device_id == i)
-  #calculate distance to nearest highway
-  dtr1$distance <- apply(st_distance(dtr1, roads2), 1, min)
-  #bind results to empty data frame
-  dtr_results <- rbind(dtr_results, dtr1)
-}
-#find what the nearest feature is
-dtr_results$nearest_feature <- st_nearest_feature(dtr_results, roads2)
-#convert index into name of road type
-dtr_results$road <- with(roads2, highway[dtr_results$nearest_feature])
-#convert to data frame
-road_distance <- sf_to_df(dtr_results, fill = TRUE)
-
-###formatting
-#change format of date
-road_distance$UTC_date <- as.Date(road_distance$UTC_date)
-#add column with weekday
-road_distance$day <- weekdays(road_distance$UTC_date)
-#creating a column for weekend or not
-road_distance$is_weekend <- road_distance$day %in% c("Saturday", "Sunday")
-#grouping road types
-road_distance$road_group <- ifelse(road_distance$road %in% c("footway","steps","path","cycleway","pedestrian"), "footpath",
-                                   ifelse(road_distance$road %in% c("service","unclassified","track","residential","residential"), "minor_road",
-                                          ifelse(road_distance$road %in% c("tertiary","secondary","tertiary_link"), "major_road",
-                                                 ifelse(road_distance$road %in% c("motorway","motorway_link"), "motorway", NA))))
-###creating a time column
-road_distance$time <- as.POSIXct(road_distance$UTC_datetime, format = "%Y-%m-%d %H:%M:%S")
-road_distance$time <- format(road_distance$time, format = "%H")
-
 
 ###creating daylight column
 #create function
@@ -182,23 +134,49 @@ is_daylight <- function(datetime, latitude, longitude) {
   return(daylight)
 }
 #apply the function to the dataset
-road_distance$daylight <- mapply(is_daylight, road_distance$UTC_datetime, road_distance$y, road_distance$x)
+all_trk2$daylight <- mapply(is_daylight, all_trk2$t_, all_trk2$y_, all_trk2$x_)
 
-#remove NAs
-road_distance <- na.omit(road_distance)
+rk_day <- all_trk2 %>%
+  filter(daylight == "TRUE") %>%
+  filter(species == "RK")
 
-#save results in txt file
-write.table(road_distance, "Distance_to_Road.txt", 
-            row.names=FALSE, sep = "\t", quote=FALSE)
-
-###timer
-end.time <- Sys.time()
-print(round(end.time-start.time,2))
-
-###Alarm
-beepr::beep(0.5, 1)
+rk_night <- all_trk2 %>%
+  filter(daylight == "FALSE") %>%
+  filter(species == "RK")
 
 
+# Latitude and Longitude of the center point
+lat <- 53.42  
+lon <- -6.15  
 
-
-
+# Create the map
+rk_day_plot <- leaflet(data = rk_day) %>%
+  addTiles() %>%  # Add default base layer tiles
+  
+  # Add points from your data frame
+  addCircleMarkers(
+    lng = ~x_,      # Specify the longitude column
+    lat = ~y_,      # Specify the latitude column
+    color = "#B8562B",  # The color you mentioned
+    radius = 3,        # The size of the markers
+    stroke = FALSE,    # No border around the markers
+    fillOpacity = 0.8  # Semi-transparent fill
+  )
+rk_plot <- leaflet() %>%
+  addTiles() %>%  
+  addCircleMarkers(data = rk_night,
+    lng = ~x_,      # Specify the longitude column
+    lat = ~y_,      # Specify the latitude column
+    color = "green",  # The color you mentioned
+    radius = 3,        # The size of the markers
+    stroke = FALSE,    # No border around the markers
+    fillOpacity = 0.8) %>%  # Semi-transparent fill 
+    addCircleMarkers(data = rk_day,
+      lng = ~x_,      # Specify the longitude column
+      lat = ~y_,      # Specify the latitude column
+      color = "red",  # The color you mentioned
+      radius = 3,        # The size of the markers
+      stroke = FALSE,    # No border around the markers
+      fillOpacity = 0.8  # Semi-transparent fill
+  )
+rk_plot

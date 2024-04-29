@@ -74,6 +74,7 @@ vig_m1 <- glmer(data = disturbance, vigilance~wind_speed+precipitation+birds+
                   human+(1|location_code), family = "poisson")
 vig_m2 <- update(vig_m1,~.-human)
 anova(vig_m1,vig_m2, test = "Chisq")
+performance::performance(vig_m1)
 
 ###plot
 ggplot(data = disturbance, aes(x = human, y = vigilance))+
@@ -94,6 +95,7 @@ fli_m1 <- glmer(data = disturbance, flight~wind_speed+precipitation+birds+
                   human_rate+(1|location_code), family = "poisson")
 fli_m2 <- update(fli_m1,~.-human_rate)
 anova(fli_m1,fli_m2, test = "Chisq")
+performance::performance(fli_m1)
 
 ###plot
 ggplot(data = disturbance, aes(x = human_rate, y = flight))+
@@ -114,6 +116,7 @@ wal_m1 <- glmer(data = disturbance, walkrun~wind_speed+precipitation+birds+
                   human_rate+(1|location_code), family = "poisson")
 wal_m2 <- update(wal_m1,~.-human_rate)
 anova(wal_m1,wal_m2, test = "Chisq")
+performance::performance(wal_m1)
 
 ###plot
 ggplot(data = disturbance, aes(x = human_rate, y = walkrun))+
@@ -133,6 +136,7 @@ ala_m1 <- glmer(data = disturbance, alarm~wind_speed+precipitation+birds+
                   human_rate+(1|location_code), family = "poisson")
 ala_m2 <- update(ala_m1,~.-human_rate)
 anova(ala_m1,ala_m2, test = "Chisq")
+performance::performance(ala_m1)
 
 ###plot
 ggplot(data = disturbance, aes(x = human_rate, y = alarm))+
@@ -161,8 +165,10 @@ hist_step <- hist(step_length$distance) # looks fine, check residuals after
 step_length_m1 <- lmer(data = step_length, distance~is_weekend*species+(1|id))
 step_length_m2 <- update(step_length_m1,~.-is_weekend:species)
 step_length_m3 <- update(step_length_m2,~.-is_weekend)
+step_length_m4 <- update(step_length_m2,~.-species)
 anova(step_length_m1,step_length_m2)
 anova(step_length_m2,step_length_m3)
+anova(step_length_m2, step_length_m4)
 summary(step_length_m2)
 
 ###check normality in residuals
@@ -219,8 +225,10 @@ home_range_m1 <- glmer(data = home_range, area~is_weekend*species+(1|id),
                        family = Gamma(link = "log"))
 home_range_m2 <- update(home_range_m1,~.-is_weekend:species)
 home_range_m3 <- update(home_range_m2,~.-is_weekend)
+home_range_m4 <- update(home_range_m2,~.-species)
 anova(home_range_m1,home_range_m2)
 anova(home_range_m2,home_range_m3)
+anova(home_range_m2,home_range_m4)
 summary(home_range_m2)
 
 ###check normality in residuals
@@ -305,12 +313,12 @@ plot(resid(road_rk_best))
 
 ###plot confidence intervals
 rk_plot_model <- plot_model(road_rk_best, vline.color = "black", 
-           order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
+           order.terms = c(3,4,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
            value.offset = .3, axis.labels = c("Weekend x Major Road",
            "Weekend x Minor Road","Peak Traffic x Major Road",
            "Peak Traffic x Minor Road","Daytime x Major Road",
            "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
-           "Minor Road","Major Road"), title = "")
+           "Major Road","Minor Road"), title = "")
 
 # Extract parameters
 param_road_rk1 <- parameters(road_rk_best)
@@ -388,12 +396,12 @@ plot(resid(road_oyc_best))
 
 ###plot confidence intervals
 oyc_plot_model <- plot_model(road_oyc_best, vline.color = "black", 
-           order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
+           order.terms = c(3,4,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
            value.offset = .3, axis.labels = c("Weekend x Major Road",
            "Weekend x Minor Road","Peak Traffic x Major Road",
            "Peak Traffic x Minor Road","Daytime x Major Road",
            "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
-           "Minor Road","Major Road"), title = "")
+           "Major Road","Minor Road"), title = "")
 
 # Extract parameters
 param_road_oyc1 <- parameters(road_oyc_best)
@@ -470,12 +478,12 @@ plot(resid(road_god_best))
 
 ###plot confidence intervals
 god_plot_model <- plot_model(road_god_best, vline.color = "black", 
-           order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
+           order.terms = c(3,4,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
            value.offset = .3, axis.labels = c("Weekend x Major Road",
            "Weekend x Minor Road","Peak Traffic x Major Road",
            "Peak Traffic x Minor Road","Daytime x Major Road",
            "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
-           "Minor Road","Major Road"), title = "")
+           "Major Road","Minor Road"), title = "")
 
 # Extract parameters
 param_road_god1 <- parameters(road_god_best)
@@ -555,12 +563,12 @@ plot(resid(road_cu_best))
 
 ###plot confidence intervals
 cu_plot_model <- plot_model(road_cu_best, vline.color = "black", 
-           order.terms = c(4,3,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
+           order.terms = c(3,4,5,1,2,6,7,10,11,8,9), show.values = TRUE, 
            value.offset = .3, axis.labels = c("Weekend x Major Road",
            "Weekend x Minor Road","Peak Traffic x Major Road",
            "Peak Traffic x Minor Road","Daytime x Major Road",
            "Daytime x Minor Road","Weekend","Daytime","Peak Traffic",
-           "Minor Road","Major Road"), title = "")
+           "Major Road","Minor Road"), title = "")
 
 # Extract parameters
 param_road_cu1 <- parameters(road_cu_best)
@@ -648,7 +656,7 @@ print(round(end.time-start.time,2))
 
 ###step length plot
 ggsave("step_plot.png", plot = step_plot,
-       width = 18, height = 12,  
+       width = 17.5, height = 12,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
@@ -656,7 +664,7 @@ ggsave("step_plot.png", plot = step_plot,
 
 ###home range plot
 ggsave("home_plot.png", plot = home_plot,
-       width = 18, height = 12,  
+       width = 17.5, height = 12,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
@@ -664,7 +672,7 @@ ggsave("home_plot.png", plot = home_plot,
 
 ###distance to road plots: RK
 ggsave("rk_plot_model.png", plot = rk_plot_model,
-       width = 18, height = 12,  
+       width = 17.5, height = 12,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
@@ -684,7 +692,7 @@ ggsave("rk_plot_traf.png", plot = rk_plot_traf,
 
 ###distance to road plots: OYC
 ggsave("oyc_plot_model.png", plot = oyc_plot_model,
-       width = 18, height = 12,  
+       width = 17.5, height = 12,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
@@ -705,19 +713,19 @@ ggsave("oyc_plot_day.png", plot = oyc_plot_day,
 
 ###distance to road plots: GOD
 ggsave("god_plot_model.png", plot = god_plot_model,
-       width = 18, height = 12,  
+       width = 17.5, height = 12,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
        limitsize = FALSE)
 ggsave("god_plot_day.png", plot = god_plot_day,
-       width = 11, height = 8,  
+       width = 17.5, height = 8,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
        limitsize = FALSE)
 ggsave("god_plot_traf.png", plot = god_plot_traf,
-       width = 5, height = 8,  
+       width = 17.5, height = 8,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
@@ -725,25 +733,25 @@ ggsave("god_plot_traf.png", plot = god_plot_traf,
 
 ###distance to road plots: CU
 ggsave("cu_plot_model.png", plot = cu_plot_model,
-       width = 18, height = 12,  
+       width = 17.5, height = 12,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
        limitsize = FALSE)
 ggsave("cu_plot_day.png", plot = cu_plot_day,
-       width = 15, height = 8,  
+       width = 17.5, height = 8,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
        limitsize = FALSE)
 ggsave("cu_plot_traf.png", plot = cu_plot_traf,
-       width = 15, height = 8,  
+       width = 17.5, height = 8,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
        limitsize = FALSE)
 ggsave("cu_plot_week.png", plot = cu_plot_week,
-       width = 15, height = 8,  
+       width = 17.5, height = 8,  
        units = "cm", dpi = 300, 
        device = "png",
        scale = 1, 
