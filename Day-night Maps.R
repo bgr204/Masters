@@ -134,7 +134,7 @@ is_daylight <- function(datetime, latitude, longitude) {
   return(daylight)
 }
 #apply the function to the dataset
-all_trk2$daylight <- mapply(is_daylight, all_trk2$t_, all_trk2$y_, all_trk2$x_)
+all_sf2$daylight <- mapply(is_daylight, all_trk2$t_, all_trk2$y_, all_trk2$x_)
 
 rk_day <- all_trk2 %>%
   filter(daylight == "TRUE") %>%
@@ -180,3 +180,41 @@ rk_plot <- leaflet() %>%
       fillOpacity = 0.8  # Semi-transparent fill
   )
 rk_plot
+
+rk_day_kde <- all_sf2 %>%
+  filter(daylight == "TRUE") %>%
+  filter(species == "RK") %>%
+  eks::st_kde() %>%
+  eks::st_get_contour(., cont=c(95)) 
+
+rk_day_plot <- leaflet() %>%
+  addTiles() %>%
+  addPolygons(data = rk_day_kde, 
+              fillColor = "red",
+              fillOpacity = 0.2,
+              weight = 1)  # Customize these styles as needed
+
+# Display the map
+rk_day_plot
+
+rk_kde <- all_sf2 %>%
+  eks::st_kde() %>%
+  eks::st_get_contour(cont = 95)  # Extract the 95% contour
+# Define bounding box using sf bbox
+bbox_sf <- st_bbox(c(xmin = -6.3, xmax = -6, ymin = 53.29, ymax = 53.55), crs = st_crs(4326))
+
+# Get OSM tiles at an appropriate zoom level
+osm_base <- get_tiles(bbox = bbox_sf, type = "osm", zoom = 12)
+
+# Create a ggplot map with the OSM basemap
+rk_ggplot_map <- ggplot() +
+  annotation_custom(ggplotGrob(ggmap(osm_base)), 
+                    xmin = bbox_sf["xmin"], xmax = bbox_sf["xmax"], 
+                    ymin = bbox_sf["ymin"], ymax = bbox_sf["ymax"]) +
+  geom_sf(data = rk_kde, fill = "blue", color = "darkblue", size = 0.5, alpha = 0.5) +
+  labs(title = "Kernel Density Estimation Contour over Dublin") +
+  coord_sf(xlim = c(bbox_sf["xmin"], bbox_sf["xmax"]), ylim = c(bbox_sf["ymin"], bbox_sf["ymax"])) +
+  theme_minimal()
+
+# Print the map
+print(rk_ggplot_map)

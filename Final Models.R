@@ -40,6 +40,8 @@ library(dplyr)
 library(gamm4)
 library(forestmodel)
 library(parameters)
+library(gridExtra)
+library(grid)
 
 
 #-------------------------Formatting: Disturbance-------------------------------
@@ -60,6 +62,8 @@ disturbance$precipitation <- ifelse(disturbance$precipitation > 0, 1, 0)
 disturbance$wind_speed <- as.numeric(factor(disturbance$wind_speed), levels = 
                                      c("0-10","10-20","20-30","30-40","40-50"))
 disturbance$birds <- (disturbance$birds_end+disturbance$birds_start)/2
+disturbance$estuary <- ifelse(disturbance$location_code %in% c("BRA","BU","SP","KG","RK","SC","PLC","RP","PB"), "BAL",
+                              ifelse(disturbance$location_code %in% c("MI","MNF","MCG","CC","MBC","PH","FB"), "MAL", "ROG"))
 
 
 
@@ -70,14 +74,15 @@ disturbance$birds <- (disturbance$birds_end+disturbance$birds_start)/2
 hist_vig <- hist(disturbance$vigilance) #count data
 
 ###mixed effects model
-vig_m1 <- glmer(data = disturbance, vigilance~wind_speed+precipitation+birds+
-                  human+(1|location_code), family = "poisson")
-vig_m2 <- update(vig_m1,~.-human)
+vig_m1 <- glm(data = disturbance, vigilance~wind_speed+precipitation+birds+
+                  human*estuary, family = "poisson")
+vig_m2 <- update(vig_m1,~.-human:estuary)
 anova(vig_m1,vig_m2, test = "Chisq")
+summary(vig_m1)
 performance::performance(vig_m1)
 
 ###plot
-ggplot(data = disturbance, aes(x = human, y = vigilance))+
+vig_plot <- ggplot(data = disturbance, aes(x = human, y = vigilance))+
   geom_point() +
   geom_smooth(method = "lm")+
   xlim(0,120)+
@@ -91,14 +96,15 @@ ggplot(data = disturbance, aes(x = human, y = vigilance))+
 hist_fli <- hist(disturbance$flight) #count data
 
 ###mixed effect model
-fli_m1 <- glmer(data = disturbance, flight~wind_speed+precipitation+birds+
-                  human_rate+(1|location_code), family = "poisson")
-fli_m2 <- update(fli_m1,~.-human_rate)
+fli_m1 <- glm(data = disturbance, flight~wind_speed+precipitation+birds+
+                  human*estuary, family = "poisson")
+fli_m2 <- update(fli_m1,~.-human:estuary)
 anova(fli_m1,fli_m2, test = "Chisq")
+summary(fli_m1)
 performance::performance(fli_m1)
 
 ###plot
-ggplot(data = disturbance, aes(x = human_rate, y = flight))+
+fli_plot <- ggplot(data = disturbance, aes(x = human, y = flight))+
   geom_point() +
   geom_smooth(method = "lm")+
   xlim(0,120)+
@@ -112,14 +118,17 @@ ggplot(data = disturbance, aes(x = human_rate, y = flight))+
 hist_wal <- hist(disturbance$walkrun) #count data
 
 ###mixed effect model
-wal_m1 <- glmer(data = disturbance, walkrun~wind_speed+precipitation+birds+
-                  human_rate+(1|location_code), family = "poisson")
-wal_m2 <- update(wal_m1,~.-human_rate)
+wal_m1 <- glm(data = disturbance, walkrun~wind_speed+precipitation+birds+
+                  human*estuary, family = "poisson")
+wal_m2 <- update(wal_m1,~.-human:estuary)
+wal_m3 <- update(wal_m2,~.-human)
 anova(wal_m1,wal_m2, test = "Chisq")
+anova(wal_m2, wal_m3, test = "Chisq")
+summary(wal_m2)
 performance::performance(wal_m1)
 
 ###plot
-ggplot(data = disturbance, aes(x = human_rate, y = walkrun))+
+wal_plot <- ggplot(data = disturbance, aes(x = human, y = walkrun))+
   geom_point() +
   geom_smooth(method = "lm")+
   xlim(0,120)+
@@ -132,14 +141,15 @@ ggplot(data = disturbance, aes(x = human_rate, y = walkrun))+
 hist_ala <- hist(disturbance$alarm) #count data
 
 #general linear model
-ala_m1 <- glmer(data = disturbance, alarm~wind_speed+precipitation+birds+
-                  human_rate+(1|location_code), family = "poisson")
-ala_m2 <- update(ala_m1,~.-human_rate)
+ala_m1 <- glm(data = disturbance, alarm~wind_speed+precipitation+birds+
+                  human*estuary, family = "poisson")
+ala_m2 <- update(ala_m1,~.-human:estuary)
 anova(ala_m1,ala_m2, test = "Chisq")
+summary(ala_m1)
 performance::performance(ala_m1)
 
 ###plot
-ggplot(data = disturbance, aes(x = human_rate, y = alarm))+
+ala_plot <- ggplot(data = disturbance, aes(x = human, y = alarm))+
   geom_point() +
   geom_smooth(method = "lm")+
   xlim(0,120)+
@@ -757,6 +767,39 @@ ggsave("cu_plot_week.png", plot = cu_plot_week,
        scale = 1, 
        limitsize = FALSE)
 
+ggsave("dist_plot.png", plot = ,
+       width = 17.5, height = 17.5,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
 
+plots_grob <- arrangeGrob(
+  vig_plot, ala_plot, wal_plot, fli_plot, 
+  ncol = 2, nrow = 2
+)
 
+# Adding text and circles directly onto the grob using 'grobTree' for better control
+final_grob <- grobTree(
+  plots_grob,
+  grid.text("A", x = 0.45, y = 0.95, gp = gpar(col = "red", fontsize = 15)), # Top-left
+  grid.text("B", x = 0.95, y = 0.95, gp = gpar(col = "red", fontsize = 15)), # Top-right
+  grid.text("C", x = 0.45, y = 0.45, gp = gpar(col = "red", fontsize = 15)), # Bottom-left
+  grid.text("D", x = 0.95, y = 0.45, gp = gpar(col = "red", fontsize = 15)), # Bottom-right
+  grid.circle(x = 0.45, y = 0.95, r = 0.025, gp = gpar(fill = "transparent", col = "red", lwd = 1.5)),
+  grid.circle(x = 0.95, y = 0.95, r = 0.025, gp = gpar(fill = "transparent", col = "red", lwd = 1.5)),
+  grid.circle(x = 0.45, y = 0.45, r = 0.025, gp = gpar(fill = "transparent", col = "red", lwd = 1.5)),
+  grid.circle(x = 0.95, y = 0.45, r = 0.025, gp = gpar(fill = "transparent", col = "red", lwd = 1.5))
+)
+
+# To display the plot
+grid.draw(final_grob)
+
+# To save the plot to a file
+ggsave("dist_plot.png", plot = final_grob,
+       width = 17.5, height = 17.5,  
+       units = "cm", dpi = 300, 
+       device = "png",
+       scale = 1, 
+       limitsize = FALSE)
 
